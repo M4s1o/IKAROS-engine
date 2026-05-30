@@ -57,6 +57,7 @@ public:
 	void bind(GLenum target, GLuint index, GLsizeiptr offset, GLsizeiptr size) const;
 	void bind(GLenum target) const;
 	void unbind(GLenum target, GLuint index) const;
+	void unbind(GLenum target) const;
 
 	void resize(GLsizeiptr size);
 
@@ -66,10 +67,12 @@ public:
 };
 
 // Shader Programs
-struct Shader {
-	GLuint id;
-	GLenum type;
-};
+namespace {
+	struct Shader {
+		GLuint id;
+		GLenum type;
+	};
+}
 
 class ShaderProgram {
 private:
@@ -93,14 +96,6 @@ public:
 };
 
 // Vertex Arrays (VAOs)
-struct IndirectCommand {
-	GLuint count;
-	GLuint instanceCount;
-	GLuint firstIndex;
-	GLint  baseVertex;
-	GLuint baseInstance;
-};
-
 class VAO {
 private:
 	GLuint id;

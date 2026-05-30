@@ -19,7 +19,7 @@ Author: Branislav Wilhelm
 std::string readFileToString(const std::string& shaderFilePath) {
 	std::ifstream file(shaderFilePath);
 	if (!file.is_open()) {
-		Error(MISC, HELPER_FUNC, ERROR, SEVERITY_LOW, FILE_NOT_OPEN, "couldn't open file");
+		Error(MISC, HELPER_FUNC, ERROR, SEVERITY_LOW, FILE_NOT_OPEN, "couldn't open file at: " + shaderFilePath);
 		return std::string();
 	}
 	std::stringstream buffer;

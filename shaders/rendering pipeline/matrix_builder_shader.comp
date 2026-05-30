@@ -1,0 +1,67 @@
+#version 460 core
+
+layout(local_size_x = 256) in;
+
+struct Transform {
+vec3 position;
+vec4 rotation;
+vec3 scale;
+};
+
+layout(std430, binding = 3) buffer partBuffer {
+	Transform part_transform[];
+};
+layout(std430, binding = 4) buffer partMatrixBuffer {
+	mat4 part_transform_matrix[];
+};
+
+uniform uint part_count;
+
+mat4 createMatrix(Transform transform);
+mat3 quatToMat3(vec4 q);
+
+void main() {
+	uint id = gl_GlobalInvocationID.x;
+    if (id >= part_count) return;
+
+    part_transform_matrix[id] = createMatrix(part_transform[id]);
+}
+
+mat4 createMatrix(Transform transform) {
+    mat3 R = quatToMat3(normalize(transform.rotation));
+
+    R[0] *= transform.scale.x;
+    R[1] *= transform.scale.y;
+    R[2] *= transform.scale.z;
+
+    mat4 M = mat4(1.0);
+
+    M[0].xyz = R[0];
+    M[1].xyz = R[1];
+    M[2].xyz = R[2];
+
+    M[3].xyz = transform.position;
+
+    return M;
+}
+
+mat3 quatToMat3(vec4 q) {
+    float x = q.x;
+    float y = q.y;
+    float z = q.z;
+    float w = q.w;
+
+    return mat3(
+        1.0 - 2.0*y*y - 2.0*z*z,
+        2.0*x*y + 2.0*w*z,
+        2.0*x*z - 2.0*w*y,
+
+        2.0*x*y - 2.0*w*z,
+        1.0 - 2.0*x*x - 2.0*z*z,
+        2.0*y*z + 2.0*w*x,
+
+        2.0*x*z + 2.0*w*y,
+        2.0*y*z - 2.0*w*x,
+        1.0 - 2.0*x*x - 2.0*y*y
+    );
+}

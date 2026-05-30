@@ -19,11 +19,17 @@
     <Filter Include="Source Files\ImGui">
       <UniqueIdentifier>{76cddcc2-4c7a-4a23-a87e-30813513e603}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Resource Files\multidraw">
-      <UniqueIdentifier>{0545ba6c-52c6-4f2a-995f-3412184eb60a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\framework">
       <UniqueIdentifier>{b856f4b9-ce9c-4f00-aa9d-04b4df3afb05}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders">
+      <UniqueIdentifier>{64c03e59-edb3-4514-a451-e3df2f27a8c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\rendering pipeline">
+      <UniqueIdentifier>{393b790a-04d6-4f96-945f-7011eec00e8a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\multidraw">
+      <UniqueIdentifier>{0545ba6c-52c6-4f2a-995f-3412184eb60a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -60,11 +66,11 @@
     <ClCompile Include="imgui\backends\imgui_impl_opengl3.cpp">
       <Filter>Source Files\ImGui</Filter>
     </ClCompile>
-    <ClCompile Include="multidrawMain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Libraries\glad.c">
       <Filter>Source Files\framework</Filter>
+    </ClCompile>
+    <ClCompile Include="Source.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -85,11 +91,23 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\multidraw.frag">
-      <Filter>Resource Files\multidraw</Filter>
+    <None Include="multidraw.vert">
+      <Filter>Resource Files\shaders\multidraw</Filter>
     </None>
-    <None Include="shaders\multidraw.vert">
-      <Filter>Resource Files\multidraw</Filter>
+    <None Include="multidraw.frag">
+      <Filter>Resource Files\shaders\multidraw</Filter>
+    </None>
+    <None Include="shaders\rendering pipeline\render_shader.frag">
+      <Filter>Resource Files\shaders\rendering pipeline</Filter>
+    </None>
+    <None Include="shaders\rendering pipeline\render_shader.vert">
+      <Filter>Resource Files\shaders\rendering pipeline</Filter>
+    </None>
+    <None Include="shaders\rendering pipeline\matrix_builder_shader.comp">
+      <Filter>Resource Files\shaders\rendering pipeline</Filter>
+    </None>
+    <None Include="shaders\rendering pipeline\command_builder_shader.comp">
+      <Filter>Resource Files\shaders\rendering pipeline</Filter>
     </None>
   </ItemGroup>
 </Project>

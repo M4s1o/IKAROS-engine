@@ -8,6 +8,7 @@ Author: Branislav Wilhelm
 *       - switch from hybrid indirect instancing to normal
 */
 
+#include "ecs.h"
 #include "graphics_API.h"
 #include "graphics_API_extension.h"
 #include "error_wrapper.h"
@@ -16,6 +17,53 @@ Author: Branislav Wilhelm
 #define GLM_ENABLE_EXPERIMENTAL
 #include <gtx/quaternion.hpp>
 #include <gtc/type_ptr.hpp>
+
+// buffer managment helper declarations
+namespace {
+
+    struct IndirectCommand {
+        GLuint count;
+        GLuint instanceCount;
+        GLuint first;
+        GLuint baseInstance;
+    };
+
+    struct MeshMetaData {
+        GLuint vertex_first;
+        GLuint vertex_count;
+        GLuint vertex_capacity;
+        GLuint padding;
+    };
+
+    struct GeometryVertex {
+        glm::vec3 position;
+        float padding0;
+        glm::vec3 normal;
+        float padding1;
+    };
+
+    struct SurfaceVertex {
+        glm::vec4 color;
+    };
+
+    struct PartTransform {
+        glm::vec3 position;
+        float padding0;
+        glm::quat rotation;
+        glm::vec3 scale;
+        float padding1;
+    };
+
+    struct PartHandle {
+        GLuint mesh_index;
+        GLuint padding;
+    };
+
+    struct PartMatrix {
+        glm::mat4 transform_matrix;
+    };
+
+}
 
 static Buffer* geometryBuffer = nullptr;
 static Buffer* surfaceBuffer = nullptr;
@@ -29,9 +77,19 @@ static Buffer* commandBuffer = nullptr;
 
 static VAO* vao = nullptr;
 
-static ShaderProgram* commandBuilderShader = nullptr;
-static ShaderProgram* matrixBuilderShader = nullptr;
-static ShaderProgram* renderShader = nullptr;
+static ShaderProgram* commandBuilderProgram = nullptr;
+static ShaderProgram* matrixBuilderProgram = nullptr;
+static ShaderProgram* renderProgram = nullptr;
+
+static const unsigned int MAX_MESH_COUNT = 100;
+static const unsigned int MAX_VERT_COUNT = 1000000;
+static const unsigned int MAX_PART_COUNT = 100000;
+
+static unsigned int partCount = 0;
+static unsigned int meshCount = 0;
+static unsigned int vertCount = 0;
+
+Fence renderFence;
 
 /*   
 * =================================
@@ -58,11 +116,11 @@ static ShaderProgram* renderShader = nullptr;
 *       -contains: surface and geometry handles
 *       -stride=4*uint
 *       -layout=(struct{
-*           uint(geometry_first),
-*           uint(surface_first),
+*           uint(vertex_first),
 *           uint(vertex_count),
+*           uint(vertex_capacity),
 *           uint(padding)
-            }(handle))
+*           }(handle))
 *       -note: not vao binding
 * 
 *   partBuffer:
@@ -114,6 +172,13 @@ static ShaderProgram* renderShader = nullptr;
 *           viewMatrix=mat4(camera_view_matrix)
 *           projMatrix=mat4(camera_projection_matrix)
 * =================================
+*   buffer bindings:
+*       0=commandBuffer
+*       1=partHandleBuffer
+*       2=meshBuffer
+*       3=partBuffer
+*       4=partMatrixBuffer
+* =================================
 *   command builder shader:
 *       -purpose: construct indirect draw commands
 *       -bindings:
@@ -125,11 +190,13 @@ static ShaderProgram* renderShader = nullptr;
 *               }(command)->commandBuffer(command)
 *           1=uint(mesh_index)->partHandleBuffer(mesh_index)
 *           2=struct{
-*               uint(geometry_first),
-*               uint(surface_first),
+*               uint(vertex_first),
 *               uint(vertex_count),
+*               uint(vertex_capacity),
 *               uint(padding)
 *               }(mesh_handle)->meshBuffer(handle)
+*       -uniforms:
+*           uint partCount;
 *           
 *   matrix builder shader:
 *       -purpose: compute transformation matracies from transform components
@@ -142,20 +209,20 @@ static ShaderProgram* renderShader = nullptr;
 *               float(padding)
 *               }(part_transform)->partBuffer(transform)
 *           4=mat4(part_transform_matrix)->partMatrixBuffer(transform_matrix)
+*       -uniforms:
+*           uint partCount;
 * =================================
 */
 
+// =========== Initialization ===========
 void ikEcsInit() {
-    const GLsizeiptr defultBufferSize = 1000000; // 1Mb
-
-    geometryBuffer =   new Buffer(defultBufferSize);
-    surfaceBuffer =    new Buffer(defultBufferSize);
-    meshBuffer =       new Buffer(defultBufferSize);
-    partBuffer =       new Buffer(defultBufferSize);
-    partHandleBuffer = new Buffer(defultBufferSize);
-    partMatrixBuffer = new Buffer(defultBufferSize);
-    commandBuffer =    new Buffer(defultBufferSize);
-
+    geometryBuffer =   new Buffer(sizeof(GeometryVertex) * MAX_VERT_COUNT);
+    surfaceBuffer =    new Buffer(sizeof(SurfaceVertex) * MAX_VERT_COUNT);
+    meshBuffer =       new Buffer(sizeof(MeshMetaData) * MAX_MESH_COUNT);
+    partBuffer =       new Buffer(sizeof(PartTransform) * MAX_PART_COUNT);
+    partHandleBuffer = new Buffer(sizeof(PartHandle) * MAX_PART_COUNT);
+    partMatrixBuffer = new Buffer(sizeof(PartMatrix) * MAX_PART_COUNT);
+    commandBuffer =    new Buffer(sizeof(IndirectCommand) * MAX_PART_COUNT);
 
 	vao = new VAO;
 
@@ -186,18 +253,206 @@ void ikEcsInit() {
     vao->link(5, 2);
     vao->link(6, 2);
     vao->divisor(2, 1);
+    
+    std::string renderingPipelineShaderDirectory = "shaders/rendering pipeline/";
 
+    commandBuilderProgram = new ShaderProgram;
+    commandBuilderProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "command_builder_shader.comp"));
+    commandBuilderProgram->compile();
 
-    commandBuilderShader = new ShaderProgram;
-    commandBuilderShader->addShader(GL_COMPUTE_SHADER, readFileToString("command_builder_shader.comp"));
-    commandBuilderShader->compile();
+    matrixBuilderProgram = new ShaderProgram;
+    matrixBuilderProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "matrix_builder_shader.comp"));
+    matrixBuilderProgram->compile();
 
-    matrixBuilderShader = new ShaderProgram;
-    matrixBuilderShader->addShader(GL_COMPUTE_SHADER, readFileToString("matrix_builder_shader.comp"));
-    matrixBuilderShader->compile();
+    renderProgram = new ShaderProgram;
+    renderProgram->addShader(GL_VERTEX_SHADER, readFileToString(renderingPipelineShaderDirectory + "render_shader.vert"));
+    renderProgram->addShader(GL_FRAGMENT_SHADER, readFileToString(renderingPipelineShaderDirectory + "render_shader.frag"));
+    renderProgram->compile();
+}
 
-    renderShader = new ShaderProgram;
-    renderShader->addShader(GL_VERTEX_SHADER, readFileToString("render_shader.vert"));
-    renderShader->addShader(GL_FRAGMENT_SHADER, readFileToString("render_shader.frag"));
-    renderShader->compile();
+// =========== Renderer ===========
+void render(Camera camera) {
+    commandBuffer->bind(   GL_SHADER_STORAGE_BUFFER, 0, 0, commandBuffer->getSize());
+    partHandleBuffer->bind(GL_SHADER_STORAGE_BUFFER, 1, 0, partHandleBuffer->getSize());
+    meshBuffer->bind(      GL_SHADER_STORAGE_BUFFER, 2, 0, meshBuffer->getSize());
+    partBuffer->bind(      GL_SHADER_STORAGE_BUFFER, 3, 0, partBuffer->getSize());
+    partMatrixBuffer->bind(GL_SHADER_STORAGE_BUFFER, 4, 0, partMatrixBuffer->getSize());
+    
+    commandBuilderProgram->useProgram();
+    glUniform1ui(glGetUniformLocation(commandBuilderProgram->getID(), "part_count"), partCount);
+    commandBuilderProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+    
+    Fence commandBuilderFence;
+    commandBuilderFence.place();
+    
+    matrixBuilderProgram->useProgram();
+    glUniform1ui(glGetUniformLocation(matrixBuilderProgram->getID(), "part_count"), partCount);
+    matrixBuilderProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+    
+    Fence matrixBuilderFence;
+    matrixBuilderFence.place();
+    
+    commandBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 0);
+    partHandleBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 1);
+    meshBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 2);
+    partBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 3);
+    partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
+    
+    GLuint64 timeout = 1000000000; // 1 second
+    commandBuilderFence.wait(timeout);
+    matrixBuilderFence.wait(timeout);
+
+    renderProgram->useProgram();
+
+    commandBuffer->bind(GL_DRAW_INDIRECT_BUFFER);
+
+    glm::mat4 viewMatrix = glm::inverse(camera.transform.getTransformMatrix());
+    glm::mat4 projectionMatrix = glm::perspective(glm::radians(camera.fov), camera.aspectRatio, camera.nearPlane, camera.farPlane);
+    glUniformMatrix4fv(glGetUniformLocation(renderProgram->getID(), "camera_view_matrix"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(renderProgram->getID(), "camera_projection_matrix"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+    vao->drawMultiIndirect(GL_TRIANGLES, partCount, (void*)0, sizeof(IndirectCommand));
+
+    renderFence.place();
+
+    commandBuffer->unbind(GL_DRAW_INDIRECT_BUFFER);
+}
+
+void insertManualData() {
+    // geometryBuffer
+    // 3 vertices, stride = 8 floats
+
+    float geometry[] = {
+        // position            // pad   // normal      // pad
+        -0.5f, -0.5f, 0.0f,    0.0f,    0,0,1,        0.0f,
+         0.5f, -0.5f, 0.0f,    0.0f,    0,0,1,        0.0f,
+         0.0f,  0.5f, 0.0f,    0.0f,    0,0,1,        0.0f
+    };
+
+    geometryBuffer->write(geometry, 0, sizeof(geometry));
+
+    // surfaceBuffer
+    // color per vertex
+
+    float surface[] = {
+        1,0,0,1,
+        0,1,0,1,
+        0,0,1,1
+    };
+
+    surfaceBuffer->write(surface, 0, sizeof(surface));
+
+    // meshBuffer
+
+    struct MeshHandle {
+        GLuint vertex_first;
+        GLuint vertex_count;
+        GLuint vertex_capacity;
+        GLuint padding;
+    };
+
+    MeshHandle mesh = {
+        0,      // first vertex
+        3,      // triangle
+        3,
+        0
+    };
+
+    meshBuffer->write(&mesh, 0, sizeof(mesh));
+
+    meshCount = 1;
+
+    // partBuffer
+
+    struct PartTransform {
+        glm::vec3 position;
+        float pad0;
+
+        glm::quat rotation;
+
+        glm::vec3 scale;
+        float pad1;
+    };
+
+    PartTransform part = {
+        glm::vec3(0,0,0),
+        0.0f,
+
+        glm::quat(1,0,0,0),
+
+        glm::vec3(1,1,1),
+        0.0f
+    };
+
+    partBuffer->write(&part, 0, sizeof(part));
+
+    partCount = 1;
+
+    // partHandleBuffer
+
+    struct PartHandle {
+        GLuint meshIndex;
+        GLuint padding;
+    };
+
+    PartHandle partHandle = {
+        0,
+        0
+    };
+
+    partHandleBuffer->write(&partHandle, 0, sizeof(partHandle));
+}
+
+// =========== Mesh ===========
+Mesh::Mesh(unsigned int vertex_capacity) {
+    if (meshCount + 1 > MAX_MESH_COUNT) {
+        Error(ENGINE_ECS, MESH, WARNING, SEVERITY_HIGH, OUT_OF_RANGE_VALUE, "maximum mesh count reached, cannot create more meshes");
+        return;
+    }
+    if (vertCount + vertex_capacity > MAX_VERT_COUNT) {
+        Error(ENGINE_ECS, MESH, WARNING, SEVERITY_HIGH, OUT_OF_RANGE_VALUE, "maximum vertex count reached, cannot create mesh of this size");
+        return;
+    }
+    index = meshCount;
+    meshCount++;
+
+    MeshMetaData metaData;
+    metaData.vertex_capacity = vertex_capacity;
+    metaData.vertex_count = 0;
+    metaData.vertex_first = vertCount;
+    meshBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
+    vertCount++;
+}
+void Mesh::vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color) {
+    errorMark;
+    GeometryVertex geometryVertex;
+    geometryVertex.position = position;
+    geometryVertex.normal = normal;
+
+    SurfaceVertex surfaceVertex;
+    surfaceVertex.color = color;
+
+    MeshMetaData metaData;
+    meshBuffer->read(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
+
+    if (metaData.vertex_count >= metaData.vertex_capacity) {
+        Error(ENGINE_ECS, MESH, WARNING, SEVERITY_MEDIUM, OUT_OF_RANGE_VALUE, "vertex capacity reached, cannot upload more geometry");
+        return;
+    }
+
+    geometryBuffer->write(&geometryVertex, sizeof(GeometryVertex) * (metaData.vertex_first + metaData.vertex_count), sizeof(GeometryVertex));
+    surfaceBuffer->write(&surfaceVertex, sizeof(SurfaceVertex) * (metaData.vertex_first + metaData.vertex_count), sizeof(SurfaceVertex));
+}
+GLuint Mesh::getHandle() {
+    return index;
+}
+
+// =========== Part ===========
+Part::Part() {
+    index = partCount;
+    partCount++;
+}
+void Part::setMesh(Mesh& mesh) {
+    GLuint meshHandle = mesh.getHandle();
+    partHandleBuffer->write(&meshHandle, sizeof(GLuint) * 2 * index, sizeof(GLuint));
 }

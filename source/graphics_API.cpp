@@ -148,6 +148,10 @@ void Buffer::unbind(GLenum target, GLuint index) const {
 	errorMark;
 	glBindBufferRange(target, index, 0, 0, 0);
 }
+void Buffer::unbind(GLenum target) const {
+	errorMark;
+	glBindBuffer(target, 0);
+}
 void Buffer::resize(GLsizeiptr size) {
 	errorMark;
 	if (size < 1) {

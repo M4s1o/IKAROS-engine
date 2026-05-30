@@ -27,13 +27,16 @@ Versions:
 // ============================================================
 
 enum ERRsystem {
+    UNKNOWN_SYSTEM,
+
     OPENGL,
     GLFW,
+
     ENGINE_GRAPHICS,
-    ENGINE_OBJECTS,
+    ENGINE_ECS,
+
     USER,
-    MISC,
-    UNKNOWN_SYSTEM
+    MISC
 };
 
 enum ERRsource {
@@ -42,9 +45,13 @@ enum ERRsource {
     VERTEX_ARRAY,
     SHADER_PROGRAM,
     WINDOW,
+
     HELPER_FUNC,
     ALLOCATION_POOL,
-    RING_BUFFER
+    RING_BUFFER,
+
+    MESH,
+    PART
 };
 
 enum ERRtype {
@@ -55,15 +62,16 @@ enum ERRtype {
 };
 
 enum ERRseverity {
+    SEVERITY_UNKNOWN,
     SEVERITY_NONE,
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
-    SEVERITY_HIGH,
-    SEVERITY_UNKNOWN
+    SEVERITY_HIGH
 };
 
 enum ERRcode {
     UNKNOWN_CODE,
+
     INVALID_POINTER,
     INVALID_VALUE,
     INVALID_HANDLE,
@@ -72,7 +80,8 @@ enum ERRcode {
     FILE_NOT_OPEN,
     VALUE_NOT_FOUND,
     UNINITIALIZED_SOURCE,
-    CHANGED_VALUE
+    CHANGED_VALUE,
+    WRONG_TIMING
 };
 
 // ============================================================

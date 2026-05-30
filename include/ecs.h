@@ -27,7 +27,7 @@ note :
 struct Transform3D {
 	glm::vec3 scale = { 1, 1, 1 }; // coeficient
 	glm::vec3 position = { 0, 0, 0 };
-	glm::quat rotation;
+	glm::quat rotation = { 1, 0, 0, 0 };
 
 	glm::mat4 getTransformMatrix() {
 		glm::mat4 translationMatrix = glm::translate(glm::mat4(1.0f), position);
@@ -70,9 +70,11 @@ struct RigidBody {
 
 class Mesh {
 private:
-	GLsizeiptr offset;
-	GLsizeiptr size;
+	GLuint index;
 public:
+	Mesh(unsigned int vertex_capacity);
+
+	void vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color);
 	void triangle(glm::vec3 vertex1, glm::vec3 vertex2, glm::vec3 vertex3, glm::vec4 color);
 	void colorTriangle(glm::vec3 vertexPos1, glm::vec3 vertexPos2, glm::vec3 vertexPos3, glm::vec4 color1, glm::vec4 color2, glm::vec4 color3);
 
@@ -81,6 +83,23 @@ public:
 
 	void cube(glm::vec3 position, glm::quat rotation, glm::vec3 size, glm::vec4 color);
 	void sphere(glm::vec3 position, glm::quat rotation, glm::vec3 size, glm::vec4 color, int segments);
+
+	void offset(glm::vec3 offset);
+	void rotate(glm::quat rotation);
+	void resize(glm::vec3 scale);
+
+	GLuint getHandle();
+};
+
+class Part {
+private:
+	GLuint index;
+public:
+	Transform3D transform;
+
+	Part();
+
+	void setMesh(Mesh& mesh);
 };
 
 class Camera {
@@ -91,14 +110,15 @@ public:
 	float nearPlane = 0.02;
 	float farPlane = 10000;
 
-	void sendUniform(GLuint shaderProgram) {
-		glm::mat4 tranformMatrix = glm::inverse(transform.getTransformMatrix());
-		glm::mat4 projectionMatrix = glm::perspective(glm::radians(fov), aspectRatio, nearPlane, farPlane);
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "cameraTransformMatrix"), 1, GL_FALSE, glm::value_ptr(tranformMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "cameraProjectionMatrix"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-	};
+	// temporary
 	void move(glm::vec3 translation) {
 		translation = glm::rotate(transform.rotation, translation);
 		transform.position += translation;
 	}
 };
+
+
+// functions
+void ikEcsInit();
+void render(Camera camera);
+void insertManualData();

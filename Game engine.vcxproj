@@ -71,20 +71,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\include;$(ProjectDir)\Libraries\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)\imgui;$(ProjectDir)\Libraries\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\include;$(ProjectDir)\Libraries\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)\imgui;$(ProjectDir)\Libraries\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\include;$(ProjectDir)\Libraries\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)\imgui;$(ProjectDir)\Libraries\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\user\Desktop\C++\Projects\Game engine\Libraries\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\include;$(ProjectDir)\Libraries\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)\imgui;$(ProjectDir)\Libraries\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -92,7 +92,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\user\Desktop\C++\Projects\Game engine\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\source;$(ProjectDir)\imgui;$(ProjectDir)\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -109,7 +109,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\user\Desktop\C++\Projects\Game engine\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\source;$(ProjectDir)\imgui;$(ProjectDir)\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -124,7 +124,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\user\Desktop\C++\Projects\Game engine\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\source;$(ProjectDir)\imgui;$(ProjectDir)\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -141,7 +141,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\user\Desktop\C++\Projects\Game engine\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\source;$(ProjectDir)\imgui;$(ProjectDir)\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -151,21 +151,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="attributes.cpp" />
-    <ClCompile Include="framework.cpp" />
-    <ClCompile Include="gl.c" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="stb.cpp" />
+    <ClCompile Include="imgui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="imgui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="imgui\imgui.cpp" />
+    <ClCompile Include="imgui\imgui_draw.cpp" />
+    <ClCompile Include="imgui\imgui_tables.cpp" />
+    <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Libraries\glad.c" />
+    <ClCompile Include="multidrawMain.cpp" />
+    <ClCompile Include="source\ecs.cpp" />
+    <ClCompile Include="source\error_wrapper.cpp" />
+    <ClCompile Include="source\graphics_API.cpp" />
+    <ClCompile Include="source\graphics_API_extension.cpp" />
+    <ClCompile Include="source\stb.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="attributes.h" />
-    <ClInclude Include="framework.h" />
-    <ClInclude Include="Include.h" />
+    <ClInclude Include="include\ecs.h" />
+    <ClInclude Include="include\error_wrapper.h" />
+    <ClInclude Include="include\graphics_API.h" />
+    <ClInclude Include="include\graphics_API_extension.h" />
+    <ClInclude Include="include\Include.h" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="Fragment.txt" />
-    <Text Include="Geometry.txt" />
-    <Text Include="Vertex.txt" />
+    <None Include="shaders\multidraw.frag" />
+    <None Include="shaders\multidraw.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

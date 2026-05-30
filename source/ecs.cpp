@@ -318,91 +318,6 @@ void render(Camera camera) {
     commandBuffer->unbind(GL_DRAW_INDIRECT_BUFFER);
 }
 
-void insertManualData() {
-    // geometryBuffer
-    // 3 vertices, stride = 8 floats
-
-    float geometry[] = {
-        // position            // pad   // normal      // pad
-        -0.5f, -0.5f, 0.0f,    0.0f,    0,0,1,        0.0f,
-         0.5f, -0.5f, 0.0f,    0.0f,    0,0,1,        0.0f,
-         0.0f,  0.5f, 0.0f,    0.0f,    0,0,1,        0.0f
-    };
-
-    geometryBuffer->write(geometry, 0, sizeof(geometry));
-
-    // surfaceBuffer
-    // color per vertex
-
-    float surface[] = {
-        1,0,0,1,
-        0,1,0,1,
-        0,0,1,1
-    };
-
-    surfaceBuffer->write(surface, 0, sizeof(surface));
-
-    // meshBuffer
-
-    struct MeshHandle {
-        GLuint vertex_first;
-        GLuint vertex_count;
-        GLuint vertex_capacity;
-        GLuint padding;
-    };
-
-    MeshHandle mesh = {
-        0,      // first vertex
-        3,      // triangle
-        3,
-        0
-    };
-
-    meshBuffer->write(&mesh, 0, sizeof(mesh));
-
-    meshCount = 1;
-
-    // partBuffer
-
-    struct PartTransform {
-        glm::vec3 position;
-        float pad0;
-
-        glm::quat rotation;
-
-        glm::vec3 scale;
-        float pad1;
-    };
-
-    PartTransform part = {
-        glm::vec3(0,0,0),
-        0.0f,
-
-        glm::quat(1,0,0,0),
-
-        glm::vec3(1,1,1),
-        0.0f
-    };
-
-    partBuffer->write(&part, 0, sizeof(part));
-
-    partCount = 1;
-
-    // partHandleBuffer
-
-    struct PartHandle {
-        GLuint meshIndex;
-        GLuint padding;
-    };
-
-    PartHandle partHandle = {
-        0,
-        0
-    };
-
-    partHandleBuffer->write(&partHandle, 0, sizeof(partHandle));
-}
-
 // =========== Mesh ===========
 Mesh::Mesh(unsigned int vertex_capacity) {
     if (meshCount + 1 > MAX_MESH_COUNT) {
@@ -442,6 +357,10 @@ void Mesh::vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color) {
 
     geometryBuffer->write(&geometryVertex, sizeof(GeometryVertex) * (metaData.vertex_first + metaData.vertex_count), sizeof(GeometryVertex));
     surfaceBuffer->write(&surfaceVertex, sizeof(SurfaceVertex) * (metaData.vertex_first + metaData.vertex_count), sizeof(SurfaceVertex));
+
+    metaData.vertex_count++;
+    meshBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
+
 }
 GLuint Mesh::getHandle() {
     return index;
@@ -449,10 +368,36 @@ GLuint Mesh::getHandle() {
 
 // =========== Part ===========
 Part::Part() {
+    if (partCount + 1 > MAX_PART_COUNT) {
+        Error(ENGINE_ECS, MESH, WARNING, SEVERITY_HIGH, OUT_OF_RANGE_VALUE, "maximum part count reached, cannot create more parts");
+        return;
+    }
     index = partCount;
     partCount++;
+
+    PartHandle meshHandle;
+    meshHandle.mesh_index = 0;
+    partHandleBuffer->write(&meshHandle, sizeof(PartHandle) * index, sizeof(PartHandle));
+    syncToBuffer();
 }
 void Part::setMesh(Mesh& mesh) {
-    GLuint meshHandle = mesh.getHandle();
-    partHandleBuffer->write(&meshHandle, sizeof(GLuint) * 2 * index, sizeof(GLuint));
+    PartHandle meshHandle;
+    meshHandle.mesh_index = mesh.getHandle();
+    partHandleBuffer->write(&meshHandle, sizeof(PartHandle) * index, sizeof(PartHandle));
+}
+void Part::syncFromBuffer() {
+    PartTransform bufferTransform;
+    partBuffer->read(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
+
+    transform.position = bufferTransform.position;
+    transform.rotation = bufferTransform.rotation;
+    transform.scale = bufferTransform.scale;
+}
+void Part::syncToBuffer() {
+    PartTransform bufferTransform;
+    bufferTransform.position = transform.position;
+    bufferTransform.rotation = transform.rotation;
+    bufferTransform.scale = transform.scale;
+
+    partBuffer->write(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
 }

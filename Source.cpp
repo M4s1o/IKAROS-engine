@@ -82,12 +82,16 @@ int main() {
 	ImGui::StyleColorsDark();
 
     Camera camera;
-	//camera.move(glm::vec3(0, 0, -2));
 	float cameraSpeed = 1;
 	float sensitivity = 130;
 
-	// manual data insert
-	insertManualData();
+	Mesh triangleMesh(3);
+	triangleMesh.vertex(glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), glm::vec4(1, 0, 0, 1));
+	triangleMesh.vertex(glm::vec3(1, -1, 0), glm::vec3(0, 0, 1), glm::vec4(0, 1, 0, 1));
+	triangleMesh.vertex(glm::vec3(-1, -1, 0), glm::vec3(0, 0, 1), glm::vec4(0, 0, 1, 1));
+
+	Part trianglePart;
+	trianglePart.setMesh(triangleMesh);
 
     while (!window.shouldClose()) {
 		window.updateFormat();
@@ -96,7 +100,7 @@ int main() {
         window.setViewportSize(1, 1, 0, 0);
         window.setViewport();
 
-		camera.aspectRatio = window.getFormat()->width / window.getFormat()->height;
+		camera.aspectRatio = (float)window.getFormat()->width / (float)window.getFormat()->height;
 
 		// translation
 		if (glfwGetKey(window.getContext(), GLFW_KEY_W) == GLFW_PRESS)

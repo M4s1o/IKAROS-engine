@@ -100,6 +100,9 @@ public:
 	Part();
 
 	void setMesh(Mesh& mesh);
+
+	void syncFromBuffer();
+	void syncToBuffer();
 };
 
 class Camera {

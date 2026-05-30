@@ -130,7 +130,7 @@ std::string systemToString(ERRsystem system) {
     case OPENGL: return "OPENGL";
     case GLFW: return "GLFW";
     case ENGINE_GRAPHICS: return "IKAROS - GRAPHICS";
-    case ENGINE_OBJECTS: return "IKAROS - OBJECTS";
+    case ENGINE_ECS: return "IKAROS - OBJECTS";
     case USER: return "USER";
     case MISC: return "MISC";
     case UNKNOWN_SYSTEM: return "UNKNOWN_SYSTEM";

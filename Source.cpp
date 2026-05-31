@@ -95,9 +95,17 @@ int main() {
 
 	Part trianglePart;
 	trianglePart.setMesh(sphereMesh);
+	trianglePart.transform.position = { 1, 1, 1 };
+	trianglePart.syncToBuffer();
+
+	Part trianglePar1;
+	trianglePar1.setMesh(sphereMesh);
+	trianglePar1.transform.position = { 0, 0, 0 };
+	trianglePar1.syncToBuffer();
 
     while (!window.shouldClose()) {
 		window.updateFormat();
+		window.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         window.setBackground(0.1, 0.1, 0.1, 1);
         window.setViewportSize(1, 1, 0, 0);
         window.setViewport();
@@ -170,6 +178,7 @@ int main() {
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+		window.swapBuffers();
         glfwPollEvents();
 		timeUpdate();
     }

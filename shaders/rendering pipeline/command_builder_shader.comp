@@ -2,6 +2,11 @@
 
 layout(local_size_x = 256) in;
 
+struct MeshIndex {
+	uint index;
+	uint _padding;
+};
+
 struct IndirectCommand {
 	uint count;
 	uint instance_count;
@@ -13,14 +18,14 @@ struct MeshHandle {
 	uint vertex_first;
 	uint vertex_count;
 	uint vertex_capacity;
-	uint _padding0;
+	uint _padding;
 };
 
 layout(std430, binding = 0) buffer indirectCommandBuffer {
 	IndirectCommand command[];
 };
 layout(std430, binding = 1) buffer partHandleBuffer {
-	uint mesh_index[];
+	MeshIndex mesh_index[];
 };
 layout(std430, binding = 2) buffer meshBuffer {
 	MeshHandle mesh_handle[];
@@ -32,8 +37,8 @@ void main() {
 	uint id = gl_GlobalInvocationID.x;
 	if (id >= part_count) return;
 
-	command[id].count = mesh_handle[mesh_index[id]].vertex_count;
+	command[id].count = mesh_handle[mesh_index[id].index].vertex_count;
 	command[id].instance_count = 1;
-	command[id].first = mesh_handle[mesh_index[id]].vertex_first;
-	command[id].base_instance = 0;
+	command[id].first = mesh_handle[mesh_index[id].index].vertex_first;
+	command[id].base_instance = id;
 }

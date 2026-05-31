@@ -297,8 +297,6 @@ void render(Camera camera) {
     meshBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 2);
     partBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 3);
     partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
-
-    getCurrentContext()->clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     GLuint64 timeout = 1000000000; // 1 second
     commandBuilderFence.wait(timeout);
@@ -319,8 +317,6 @@ void render(Camera camera) {
     renderFence.place();
 
     commandBuffer->unbind(GL_DRAW_INDIRECT_BUFFER);
-
-    getCurrentContext()->swapBuffers();
 }
 
 // =========== Mesh ===========
@@ -428,7 +424,7 @@ Part::Part() {
     partCount++;
 
     PartHandle meshHandle;
-    meshHandle.mesh_index = 0;
+    meshHandle.mesh_index = 0;  
     partHandleBuffer->write(&meshHandle, sizeof(PartHandle) * index, sizeof(PartHandle));
     syncToBuffer();
 }

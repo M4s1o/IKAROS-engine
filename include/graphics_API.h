@@ -158,7 +158,7 @@ struct WindowFormat {
 
 class Window {
 private:
-	size_t contextIndex;
+	GLFWwindow* context = nullptr;
 	WindowFormat format;
 
 	GLFWmonitor* getMonitor();
@@ -206,8 +206,11 @@ public:
 
 	bool shouldClose();
 	const WindowFormat* getFormat() const;
-	GLFWwindow* getContext() const;
+	GLFWwindow* getContext();
 };
+
+Window* getPrimaryContext();
+Window* getCurrentContext();
 
 class Texture {
 private:

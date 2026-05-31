@@ -90,12 +90,14 @@ int main() {
 	triangleMesh.vertex(glm::vec3(1, -1, 0), glm::vec3(0, 0, 1), glm::vec4(0, 1, 0, 1));
 	triangleMesh.vertex(glm::vec3(-1, -1, 0), glm::vec3(0, 0, 1), glm::vec4(0, 0, 1, 1));
 
+	Mesh sphereMesh(3000);
+	sphereMesh.sphere(glm::vec3(0, 0, 0), glm::angleAxis(0.0f, glm::vec3(0, 1, 0)), glm::vec3(1, 1, 1), glm::vec4(0.8, 0.1, 0.1, 1), 10);
+
 	Part trianglePart;
-	trianglePart.setMesh(triangleMesh);
+	trianglePart.setMesh(sphereMesh);
 
     while (!window.shouldClose()) {
 		window.updateFormat();
-        window.clear(GL_COLOR_BUFFER_BIT);
         window.setBackground(0.1, 0.1, 0.1, 1);
         window.setViewportSize(1, 1, 0, 0);
         window.setViewport();
@@ -168,7 +170,6 @@ int main() {
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        window.swapBuffers();
         glfwPollEvents();
 		timeUpdate();
     }

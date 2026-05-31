@@ -24,12 +24,12 @@ static GLuint currentShader = 0;
 // =========== VaoManager ===========
 
 // =========== ContextManager ===========
-static std::vector<GLFWwindow*> contexts;
-static GLFWwindow* primaryContext = nullptr;
-static GLFWwindow* currentContext = nullptr;
-static void replacePrimaryContext(GLFWwindow* avoid) {
-	for (GLFWwindow* context : contexts) {
-		if (context != nullptr && context != avoid) {
+static std::vector<Window*> contexts;
+static Window* primaryContext = nullptr;
+static Window* currentContext = nullptr;
+static void replacePrimaryContext(Window* avoid) {
+	for (Window* context : contexts) {
+		if (context->getContext() != nullptr && context != avoid) {
 			primaryContext = context;
 			return;
 		}
@@ -43,6 +43,12 @@ static size_t getContextIndex() {
 	}
 	contexts.push_back(nullptr);
 	return contextCount;
+}
+Window* getPrimaryContext() {
+	return primaryContext;
+}
+Window* getCurrentContext() {
+	return currentContext;
 }
 
 // =========== Fence ===========
@@ -368,29 +374,27 @@ GLFWmonitor* Window::getMonitor() {
 	return nullptr;
 }
 Window::Window() {
-	contextIndex = getContextIndex();
 	reload();
 }
 Window::Window(WindowFormat format) : format(format) {
-	contextIndex = getContextIndex();
 	reload();
 }
 Window::~Window() {
 	errorMark;
-	if (contexts[contextIndex]) {
-		if (currentContext == contexts[contextIndex])
+	if (context) {
+		if (currentContext == this)
 			currentContext = nullptr;
-		if (primaryContext == contexts[contextIndex]) {
+		if (primaryContext == this) {
 			Error(ENGINE_GRAPHICS, WINDOW, NOTIFICATION, SEVERITY_NONE, CHANGED_VALUE, errorPosition, "primary window reloaded");
-			replacePrimaryContext(contexts[contextIndex]);
+			replacePrimaryContext(this);
 		}
-		glfwDestroyWindow(contexts[contextIndex]);
+		glfwDestroyWindow(context);
 	}
 }
 void Window::setName(std::string name) {
 	format.name = name;
 	errorMark;
-	glfwSetWindowTitle(contexts[contextIndex], name.c_str());
+	glfwSetWindowTitle(context, name.c_str());
 }
 void Window::setPosition(float localX, float localY, int pixelX, int pixelY) {
 	errorMark;
@@ -398,7 +402,7 @@ void Window::setPosition(float localX, float localY, int pixelX, int pixelY) {
 	format.posX = pixelX + localX * mode->width;
 	format.posY = pixelY + localY * mode->height;
 	errorMark;
-	glfwSetWindowPos(contexts[contextIndex], format.posX, format.posY);
+	glfwSetWindowPos(context, format.posX, format.posY);
 }
 void Window::setSize(float localWidth, float localHeight, int pixelWidth, int pixelHeight) {
 	errorMark;
@@ -412,7 +416,7 @@ void Window::setSize(float localWidth, float localHeight, int pixelWidth, int pi
 	format.width = width;
 	format.height = height;
 	errorMark;
-	glfwSetWindowSize(contexts[contextIndex], format.width, format.height);
+	glfwSetWindowSize(context, format.width, format.height);
 }
 void Window::setMinSize(float localWidth, float localHeight, int pixelWidth, int pixelHeight) {
 	errorMark;
@@ -420,7 +424,7 @@ void Window::setMinSize(float localWidth, float localHeight, int pixelWidth, int
 	format.minWidth = pixelWidth + localWidth * mode->width;
 	format.minHeight = pixelHeight + localHeight * mode->height;
 	errorMark;
-	glfwSetWindowSizeLimits(contexts[contextIndex],
+	glfwSetWindowSizeLimits(context,
 		format.minWidth, format.minHeight,
 		format.maxWidth, format.maxHeight);
 }
@@ -430,7 +434,7 @@ void Window::setMaxSize(float localWidth, float localHeight, int pixelWidth, int
 	format.maxWidth = pixelWidth + localWidth * mode->width;
 	format.maxHeight = pixelHeight + localHeight * mode->height;
 	errorMark;
-	glfwSetWindowSizeLimits(contexts[contextIndex],
+	glfwSetWindowSizeLimits(context,
 		format.minWidth, format.minHeight,
 		format.maxWidth, format.maxHeight);
 }
@@ -439,7 +443,7 @@ void Window::setMaximized(bool maximized) {
 		return;
 	format.maximized = maximized;
 	errorMark;
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_MAXIMIZED, maximized ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_MAXIMIZED, maximized ? GLFW_TRUE : GLFW_FALSE);
 }
 void Window::setFullscreen(bool fullscreen) {
 	if (format.fullscreen == fullscreen)
@@ -448,7 +452,7 @@ void Window::setFullscreen(bool fullscreen) {
 	GLFWmonitor* monitor = getMonitor();
 	errorMark;
 	const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-	glfwSetWindowMonitor(contexts[contextIndex],
+	glfwSetWindowMonitor(context,
 		fullscreen ? monitor : nullptr,
 		format.posX,
 		format.posY,
@@ -461,21 +465,21 @@ void Window::setFloating(bool floating) {
 		return;
 	format.floating = floating;
 	errorMark;
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_FLOATING, floating ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_FLOATING, floating ? GLFW_TRUE : GLFW_FALSE);
 }
 void Window::setVisible(bool visible) {
 	if (format.visible == visible)
 		return;
 	format.visible = visible;
 	errorMark;
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_VISIBLE, visible ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_VISIBLE, visible ? GLFW_TRUE : GLFW_FALSE);
 }
 void Window::setFocused(bool focused) {
 	if (format.focused == focused)
 		return;
 	format.focused = focused;
 	errorMark;
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_FOCUSED, focused ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_FOCUSED, focused ? GLFW_TRUE : GLFW_FALSE);
 }
 void Window::setVsync(bool Vsync) {
 	if (format.Vsync == Vsync)
@@ -490,14 +494,14 @@ void Window::setResizable(bool resizable) {
 		return;
 	format.resizable = resizable;
 	errorMark;
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE);
 }
 void Window::setBorderless(bool borderless) {
 	if (format.borderless == borderless)
 		return;
 	format.borderless = borderless;
 	errorMark;
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_DECORATED, borderless ? GLFW_FALSE : GLFW_TRUE);
+	glfwSetWindowAttrib(context, GLFW_DECORATED, borderless ? GLFW_FALSE : GLFW_TRUE);
 }
 void Window::setSamples(uint8_t samples) {
 	format.samples = samples;
@@ -516,14 +520,16 @@ void Window::setColorBits(uint8_t redBits, uint8_t greenBits, uint8_t blueBits, 
 }
 void Window::reload() {
 	errorMark;
-	if (contexts[contextIndex]) {
-		if (currentContext == contexts[contextIndex])
+	if (!primaryContext)
+		primaryContext = this;
+	if (context) {
+		if (currentContext->getContext() == context)
 			currentContext = nullptr;
-		if (primaryContext == contexts[contextIndex]) {
+		if (primaryContext->getContext() == context) {
 			Error(ENGINE_GRAPHICS, WINDOW, NOTIFICATION, SEVERITY_NONE, CHANGED_VALUE, errorPosition, "primary window reloaded");
-			replacePrimaryContext(contexts[contextIndex]);
+			replacePrimaryContext(this);
 		}
-		glfwDestroyWindow(contexts[contextIndex]);
+		glfwDestroyWindow(context);
 	}
 
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -539,15 +545,12 @@ void Window::reload() {
 	glfwWindowHint(GLFW_BLUE_BITS, format.blueBits);
 	glfwWindowHint(GLFW_ALPHA_BITS, format.alphaBits);
 
-	contexts[contextIndex] = glfwCreateWindow(
+	context = glfwCreateWindow(
 		format.width,
 		format.height,
 		format.name.c_str(),
 		format.fullscreen ? getMonitor() : nullptr,
-		primaryContext);
-
-	if (!primaryContext)
-		primaryContext = contexts[contextIndex];
+		primaryContext->getContext());
 
 	makeCurrentContext();
 	errorMark;
@@ -556,23 +559,23 @@ void Window::reload() {
 		return;
 	}
 
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_MAXIMIZED, format.maximized ? GLFW_TRUE : GLFW_FALSE);
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_FLOATING, format.floating ? GLFW_TRUE : GLFW_FALSE);
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_VISIBLE, format.visible ? GLFW_TRUE : GLFW_FALSE);
-	glfwSetWindowAttrib(contexts[contextIndex], GLFW_FOCUSED, format.focused ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_MAXIMIZED, format.maximized ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_FLOATING, format.floating ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_VISIBLE, format.visible ? GLFW_TRUE : GLFW_FALSE);
+	glfwSetWindowAttrib(context, GLFW_FOCUSED, format.focused ? GLFW_TRUE : GLFW_FALSE);
 	glfwSwapInterval(format.Vsync);
 }
 void Window::updateFormat() {
 	errorMark;
-	glfwGetWindowPos(contexts[contextIndex], &format.posX, &format.posY);
-	glfwGetWindowSize(contexts[contextIndex], &format.width, &format.height);
-	format.maximized = glfwGetWindowAttrib(contexts[contextIndex], GLFW_MAXIMIZED) == GLFW_TRUE;
-	format.floating = glfwGetWindowAttrib(contexts[contextIndex], GLFW_FLOATING) == GLFW_TRUE;
-	format.visible = glfwGetWindowAttrib(contexts[contextIndex], GLFW_VISIBLE) == GLFW_TRUE;
-	format.focused = glfwGetWindowAttrib(contexts[contextIndex], GLFW_FOCUSED) == GLFW_TRUE;
-	format.resizable = glfwGetWindowAttrib(contexts[contextIndex], GLFW_RESIZABLE) == GLFW_TRUE;
-	format.borderless = glfwGetWindowAttrib(contexts[contextIndex], GLFW_DECORATED) == GLFW_FALSE;
-	format.fullscreen = glfwGetWindowMonitor(contexts[contextIndex]) != nullptr;
+	glfwGetWindowPos(context, &format.posX, &format.posY);
+	glfwGetWindowSize(context, &format.width, &format.height);
+	format.maximized = glfwGetWindowAttrib(context, GLFW_MAXIMIZED) == GLFW_TRUE;
+	format.floating = glfwGetWindowAttrib(context, GLFW_FLOATING) == GLFW_TRUE;
+	format.visible = glfwGetWindowAttrib(context, GLFW_VISIBLE) == GLFW_TRUE;
+	format.focused = glfwGetWindowAttrib(context, GLFW_FOCUSED) == GLFW_TRUE;
+	format.resizable = glfwGetWindowAttrib(context, GLFW_RESIZABLE) == GLFW_TRUE;
+	format.borderless = glfwGetWindowAttrib(context, GLFW_DECORATED) == GLFW_FALSE;
+	format.fullscreen = glfwGetWindowMonitor(context) != nullptr;
 }
 void Window::setFormat(WindowFormat format) {
 	if (format.width < 0 || format.height < 0) {
@@ -617,24 +620,24 @@ void Window::clear(GLbitfield bitfield) {
 }
 void Window::makeCurrentContext() {
 	errorMark;
-	if (currentContext == contexts[contextIndex])
+	if (currentContext == this)
 		return;
-	currentContext = contexts[contextIndex];
-	glfwMakeContextCurrent(contexts[contextIndex]);
+	currentContext = this;
+	glfwMakeContextCurrent(context);
 }
 void Window::swapBuffers() {
 	errorMark;
-	glfwSwapBuffers(contexts[contextIndex]);
+	glfwSwapBuffers(context);
 }
 bool Window::shouldClose() {
 	errorMark;
-	return glfwWindowShouldClose(contexts[contextIndex]);
+	return glfwWindowShouldClose(context);
 }
 const WindowFormat* Window::getFormat() const {
 	return &format;
 }
-GLFWwindow* Window::getContext() const {
-	return contexts[contextIndex];
+GLFWwindow* Window::getContext() {
+	return context;
 }
 
 // =========== Texture ===========

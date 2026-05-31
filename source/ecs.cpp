@@ -297,6 +297,8 @@ void render(Camera camera) {
     meshBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 2);
     partBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 3);
     partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
+
+    getCurrentContext()->clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     GLuint64 timeout = 1000000000; // 1 second
     commandBuilderFence.wait(timeout);
@@ -305,6 +307,7 @@ void render(Camera camera) {
     renderProgram->useProgram();
 
     commandBuffer->bind(GL_DRAW_INDIRECT_BUFFER);
+    glEnable(GL_DEPTH_TEST);
 
     glm::mat4 viewMatrix = glm::inverse(camera.transform.getTransformMatrix());
     glm::mat4 projectionMatrix = glm::perspective(glm::radians(camera.fov), camera.aspectRatio, camera.nearPlane, camera.farPlane);
@@ -316,6 +319,8 @@ void render(Camera camera) {
     renderFence.place();
 
     commandBuffer->unbind(GL_DRAW_INDIRECT_BUFFER);
+
+    getCurrentContext()->swapBuffers();
 }
 
 // =========== Mesh ===========
@@ -362,6 +367,53 @@ void Mesh::vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color) {
     meshBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
 
 }
+void Mesh::sphere(glm::vec3 position, glm::quat rotation, glm::vec3 scale, glm::vec4 color, unsigned int segments) {
+    for (unsigned int x = 0; x < segments; x++) {
+        float thetha0 = glm::radians(360.0f / (float)segments * (float)x);
+        float thetha1 = glm::radians(360.0f / (float)segments * (float)(x + 1));
+
+        for (unsigned int y = 0; y < segments; y++) {
+            float phi0 = glm::radians(180.0f / (float)segments * (float)y);
+            float phi1 = glm::radians(180.0f / (float)segments * (float)(y+1));
+
+            glm::vec3 vertexPosition[4];
+
+            vertexPosition[0].x = glm::cos(phi0) * glm::cos(thetha0);
+            vertexPosition[0].y = glm::sin(phi0) * glm::cos(thetha0);
+            vertexPosition[0].z = glm::sin(thetha0);
+
+            vertexPosition[1].x = glm::cos(phi1) * glm::cos(thetha0);
+            vertexPosition[1].y = glm::sin(phi1) * glm::cos(thetha0);
+            vertexPosition[1].z = glm::sin(thetha0);
+
+            vertexPosition[2].x = glm::cos(phi0) * glm::cos(thetha1);
+            vertexPosition[2].y = glm::sin(phi0) * glm::cos(thetha1);
+            vertexPosition[2].z = glm::sin(thetha1);
+
+            vertexPosition[3].x = glm::cos(phi1) * glm::cos(thetha1);
+            vertexPosition[3].y = glm::sin(phi1) * glm::cos(thetha1);
+            vertexPosition[3].z = glm::sin(thetha1);
+
+            glm::vec3 vertexNormal[4];
+
+            for (unsigned int i = 0; i < 4; i++) {
+                vertexNormal[i] = glm::normalize(vertexPosition[i]);
+
+                vertexPosition[i] *= scale;
+                vertexPosition[i] = glm::rotate(rotation, vertexPosition[i]);
+                vertexPosition[i] += position;
+            }
+
+            vertex(vertexPosition[0], vertexNormal[0], color);
+            vertex(vertexPosition[1], vertexNormal[1], color);
+            vertex(vertexPosition[2], vertexNormal[2], color);
+
+            vertex(vertexPosition[1], vertexNormal[1], color);
+            vertex(vertexPosition[2], vertexNormal[2], color);
+            vertex(vertexPosition[3], vertexNormal[3], color);
+        }
+    }
+}
 GLuint Mesh::getHandle() {
     return index;
 }
@@ -400,4 +452,7 @@ void Part::syncToBuffer() {
     bufferTransform.scale = transform.scale;
 
     partBuffer->write(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
+}
+GLuint Part::getHandle() {
+    return index;
 }

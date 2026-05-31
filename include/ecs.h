@@ -75,14 +75,13 @@ public:
 	Mesh(unsigned int vertex_capacity);
 
 	void vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color);
-	void triangle(glm::vec3 vertex1, glm::vec3 vertex2, glm::vec3 vertex3, glm::vec4 color);
-	void colorTriangle(glm::vec3 vertexPos1, glm::vec3 vertexPos2, glm::vec3 vertexPos3, glm::vec4 color1, glm::vec4 color2, glm::vec4 color3);
 
-	void rectangle(glm::vec3 position, glm::quat rotation, glm::vec2 size, glm::vec4 color);
-	void circle(glm::vec3 position, glm::quat rotation, glm::vec2 size, glm::vec4 color, int segments);
+	void rectangle(glm::vec3 position, glm::quat rotation, glm::vec2 scale, glm::vec4 color);
+	void circle(glm::vec3 position, glm::quat rotation, glm::vec2 scale, glm::vec4 color, unsigned int segments);
 
-	void cube(glm::vec3 position, glm::quat rotation, glm::vec3 size, glm::vec4 color);
-	void sphere(glm::vec3 position, glm::quat rotation, glm::vec3 size, glm::vec4 color, int segments);
+	void cube(glm::vec3 position, glm::quat rotation, glm::vec3 scale, glm::vec4 color);
+	void sphere(glm::vec3 position, glm::quat rotation, glm::vec3 scale, glm::vec4 color, unsigned int segments);
+	void icoSphere(glm::vec3 position, glm::quat rotation, glm::vec3 scale, glm::vec4 color, unsigned int vertacies);
 
 	void offset(glm::vec3 offset);
 	void rotate(glm::quat rotation);
@@ -103,6 +102,8 @@ public:
 
 	void syncFromBuffer();
 	void syncToBuffer();
+
+	GLuint getHandle();
 };
 
 class Camera {
@@ -124,4 +125,3 @@ public:
 // functions
 void ikEcsInit();
 void render(Camera camera);
-void insertManualData();

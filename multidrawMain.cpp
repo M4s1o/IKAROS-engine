@@ -30,13 +30,13 @@ int main() {
 
     // square (2 triangles = 6 verts)
     float square[] = {
-       -0.5f * 0.1,  0.5f * 0.1,
-       -0.0f * 0.1,  0.5f * 0.1,
-       -0.5f * 0.1, -0.0f * 0.1,
+    -0.5f * 0.1,  0.5f * 0.1,
+     0.5f * 0.1,  0.5f * 0.1,
+    -0.5f * 0.1, -0.5f * 0.1,
 
-       -0.5f * 0.1, -0.0f * 0.1,
-        0.5f * 0.1,  0.5f * 0.1,
-        0.5f * 0.1, -0.5f * 0.1
+    -0.5f * 0.1, -0.5f * 0.1,
+     0.5f * 0.1,  0.5f * 0.1,
+     0.5f * 0.1, -0.5f * 0.1
     };
     std::vector<float> vertices;
     vertices.insert(vertices.end(), std::begin(triangle), std::end(triangle));
@@ -86,8 +86,8 @@ int main() {
     for (int y = 0; y < GRID_H; y++) {
         for (int x = 0; x < GRID_W; x++) {
             offsets.emplace_back(
-                x * 0.2f - 1.0f,
-                y * 0.2f - 1.0f
+                x * 2.0f / (float)GRID_H - 1.0f,
+                y * 2.0f / (float)GRID_W - 1.0f
             );
         }
     }
@@ -103,16 +103,17 @@ int main() {
     vao.binding(0, vertexBuffer.getID(), 0, sizeof(float) * 2);
     vao.link(0, 0);
 
-    vao.attribute(1, 2, GL_FLOAT, GL_FALSE, 0);
-    vao.binding(1, offsetBuffer.getID(), 0, sizeof(glm::vec2));
-    vao.link(1, 1);
-
-    vao.divisor(1, 1);
-
     ShaderProgram shader;
-    shader.addShader(GL_VERTEX_SHADER, readFileToString("shaders/multidraw.vert"));
-    shader.addShader(GL_FRAGMENT_SHADER, readFileToString("shaders/multidraw.frag"));
+    shader.addShader(GL_VERTEX_SHADER, readFileToString("multidraw.vert"));
+    shader.addShader(GL_FRAGMENT_SHADER, readFileToString("multidraw.frag"));
     shader.compile();
+
+    offsetBuffer.bind(GL_SHADER_STORAGE_BUFFER, 0, 0, offsetBuffer.getSize());
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    //glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     while (!window.shouldClose()) {
         window.getFormat();
@@ -124,8 +125,10 @@ int main() {
         shader.useProgram();
         indirectBuffer.bind(GL_DRAW_INDIRECT_BUFFER);
 
+        glPointSize(10);
+
         vao.drawMultiIndirect(
-            GL_TRIANGLES,
+            GL_POINTS,
             cmds.size(),
             (void*)0,
             sizeof(DrawArraysIndirectCommand)

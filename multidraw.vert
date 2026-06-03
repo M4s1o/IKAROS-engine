@@ -1,8 +1,12 @@
 #version 460 core
 
+layout(std430, binding = 0) buffer offsetBuffer {
+    vec2 offset[];
+};
+
 layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aOffset;
 
 void main() {
-    gl_Position = vec4(aPos + aOffset, 0.0, 1.0);
+    uint id = gl_BaseInstance + gl_InstanceID;
+    gl_Position = vec4(aPos + offset[id], 0.0, 1.0);
 }

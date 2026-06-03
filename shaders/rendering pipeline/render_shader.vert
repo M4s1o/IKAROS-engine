@@ -13,6 +13,7 @@ out vec4 vertColor;
 
 void main() {
 	gl_Position = camera_projection_matrix * camera_view_matrix * part_transform_matrix * vec4(vertex_position, 1.0);
+	gl_PointSize = 10.0;
 	vertNormal = vertex_normal;
 	vertColor = vertex_color;
 }

@@ -127,3 +127,6 @@ public:
 // functions
 void ikEcsInit();
 void render(Camera camera);
+
+void dumpEcsState(int maxParts = 10, int maxMeshes = 10);
+void forceDebugRenderData();

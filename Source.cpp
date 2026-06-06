@@ -16,7 +16,7 @@ std::chrono::duration<float> elapsedT;
 std::chrono::duration<float> lastElapsedT;
 std::chrono::steady_clock::time_point start;
 
-static constexpr size_t FPS_SMOOTH_WINDOW = 60;
+static constexpr size_t FPS_SMOOTH_WINDOW = 1000;
 static std::vector<float> frameTimes;
 static size_t framePos = 0;
 static float frameTimeSum = 0.0f;
@@ -85,13 +85,13 @@ int main() {
 	float cameraSpeed = 1;
 	float sensitivity = 130;
 
+	Mesh sphereMesh(3000);
+	sphereMesh.sphere(glm::vec3(0, 0, 0), glm::angleAxis(0.0f, glm::vec3(0, 1, 0)), glm::vec3(1, 1, 1), glm::vec4(0.8, 0.1, 0.1, 1), 10);
+
 	Mesh triangleMesh(3);
 	triangleMesh.vertex(glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), glm::vec4(1, 0, 0, 1));
 	triangleMesh.vertex(glm::vec3(1, -1, 0), glm::vec3(0, 0, 1), glm::vec4(0, 1, 0, 1));
 	triangleMesh.vertex(glm::vec3(-1, -1, 0), glm::vec3(0, 0, 1), glm::vec4(0, 0, 1, 1));
-
-	Mesh sphereMesh(3000);
-	sphereMesh.sphere(glm::vec3(0, 0, 0), glm::angleAxis(0.0f, glm::vec3(0, 1, 0)), glm::vec3(1, 1, 1), glm::vec4(0.8, 0.1, 0.1, 1), 10);
 
 	Part trianglePart;
 	trianglePart.setMesh(sphereMesh);
@@ -102,6 +102,11 @@ int main() {
 	trianglePar1.setMesh(sphereMesh);
 	trianglePar1.transform.position = { 0, 0, 0 };
 	trianglePar1.syncToBuffer();
+
+	Part trianglePar2;
+	trianglePar2.setMesh(triangleMesh);
+	trianglePar2.transform.position = { 2, 0, 0 };
+	trianglePar2.syncToBuffer();
 
     while (!window.shouldClose()) {
 		window.updateFormat();
@@ -144,10 +149,10 @@ int main() {
 		if (glfwGetKey(window.getContext(), GLFW_KEY_L) == GLFW_PRESS)
 			rotY -= sensitivity * deltaTime();
 
-		if (glfwGetKey(window.getContext(), GLFW_KEY_U) == GLFW_PRESS)
+		if (glfwGetKey(window.getContext(), GLFW_KEY_Q) == GLFW_PRESS)
 			rotZ += sensitivity * deltaTime();
 
-		if (glfwGetKey(window.getContext(), GLFW_KEY_O) == GLFW_PRESS)
+		if (glfwGetKey(window.getContext(), GLFW_KEY_E) == GLFW_PRESS)
 			rotZ -= sensitivity * deltaTime();
 
 		glm::quat quatX = glm::angleAxis(glm::radians(rotX), glm::vec3(1, 0, 0));
@@ -165,6 +170,8 @@ int main() {
 		camera.transform.rotation = glm::normalize(camera.transform.rotation);
 
         render(camera);
+
+		//dumpEcsState(10, 10);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();

@@ -33,7 +33,6 @@ namespace {
         GLuint vertex_count;
         GLuint vertex_capacity;
         GLuint state;
-        GLuint reference_offet;
     };
 
     struct GeometryVertex {
@@ -295,21 +294,25 @@ void ikEcsInit() {
 
 // =========== Renderer ===========
 void render(Camera camera) {
-    geometryBuffer->bind(GL_SHADER_STORAGE_BUFFER, 0, 0, geometryBuffer->getSize());
-    surfaceBuffer->bind(GL_SHADER_STORAGE_BUFFER, 1, 0, surfaceBuffer->getSize());
-    meshMetaBuffer->bind(GL_SHADER_STORAGE_BUFFER, 2, 0, meshMetaBuffer->getSize());
-    meshRenderBuffer->bind(GL_ATOMIC_COUNTER_BUFFER, 3, 0, meshRenderBuffer->getSize());
+    meshMetaBuffer->bind(     GL_SHADER_STORAGE_BUFFER, 0, 0, meshMetaBuffer->getSize());
+    meshRenderBuffer->bind(   GL_SHADER_STORAGE_BUFFER, 1, 0, meshRenderBuffer->getSize());
 
-    partMetaBuffer->bind(GL_SHADER_STORAGE_BUFFER, 4, 0, partMetaBuffer->getSize());
-    partTransformBuffer->bind(GL_SHADER_STORAGE_BUFFER, 5, 0, partTransformBuffer->getSize());
-    partMatrixBuffer->bind(GL_SHADER_STORAGE_BUFFER, 6, 0, partMatrixBuffer->getSize());
+    partMetaBuffer->bind(     GL_SHADER_STORAGE_BUFFER, 2, 0, partMetaBuffer->getSize());
+    partTransformBuffer->bind(GL_SHADER_STORAGE_BUFFER, 3, 0, partTransformBuffer->getSize());
+    partMatrixBuffer->bind(   GL_SHADER_STORAGE_BUFFER, 4, 0, partMatrixBuffer->getSize());
 
-    commandBuffer->bind(GL_SHADER_STORAGE_BUFFER, 7, 0, commandBuffer->getSize());
-    referenceBuffer->bind(GL_SHADER_STORAGE_BUFFER, 8, 0, referenceBuffer->getSize());
+    commandBuffer->bind(      GL_SHADER_STORAGE_BUFFER, 5, 0, commandBuffer->getSize());
+    referenceBuffer->bind(    GL_SHADER_STORAGE_BUFFER, 6, 0, referenceBuffer->getSize());
+
+    meshRenderBuffer->set(0, 0, meshRenderBuffer->getSize());
 
     renderabilityProgram->useProgram();
     glUniform1ui(glGetUniformLocation(renderabilityProgram->getID(), "part_count"), partCount);
-    renderabilityProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+    renderabilityProgram->runCompute((partCount + 255) / 256, 1, 1);
+
+    Fence fence;
+    fence.place();
+    fence.wait(1000000000);
 
     std::vector<MeshRenderData> meshRenderData(meshCount);
     meshRenderBuffer->read(meshRenderData.data(), 0, meshCount * sizeof(MeshRenderData));
@@ -326,18 +329,28 @@ void render(Camera camera) {
     orderingProgram->useProgram();
     glUniform1ui(glGetUniformLocation(orderingProgram->getID(), "part_count"), partCount);
     orderingProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
-    
+
     matrixBuilderProgram->useProgram();
     glUniform1ui(glGetUniformLocation(matrixBuilderProgram->getID(), "active_part_count"), activePartCount);
-    matrixBuilderProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+    matrixBuilderProgram->runCompute((activePartCount + 255) / 256, 1, 1);
 
     commandBuilderProgram->useProgram();
     glUniform1ui(glGetUniformLocation(commandBuilderProgram->getID(), "mesh_count"), meshCount);
-    commandBuilderProgram->runCompute((meshCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+    commandBuilderProgram->runCompute((meshCount + 255) / 256, 1, 1);
+
+    meshMetaBuffer->unbind(     GL_SHADER_STORAGE_BUFFER, 0);
+    meshRenderBuffer->unbind(   GL_ATOMIC_COUNTER_BUFFER, 1);
+    partMetaBuffer->unbind(     GL_SHADER_STORAGE_BUFFER, 2);
+    partTransformBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 3);
+    commandBuffer->unbind(      GL_SHADER_STORAGE_BUFFER, 5);
+
+    fence.place();
+    fence.wait(1000000000);
 
     renderProgram->useProgram();
 
     commandBuffer->bind(GL_DRAW_INDIRECT_BUFFER);
+
     glEnable(GL_DEPTH_TEST);
 
     glm::mat4 viewMatrix = glm::inverse(camera.transform.getTransformMatrix());
@@ -345,21 +358,11 @@ void render(Camera camera) {
     glUniformMatrix4fv(glGetUniformLocation(renderProgram->getID(), "camera_view_matrix"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
     glUniformMatrix4fv(glGetUniformLocation(renderProgram->getID(), "camera_projection_matrix"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-    vao->drawMultiIndirect(GL_TRIANGLES, partCount, (void*)0, sizeof(IndirectCommand));
+    vao->drawMultiIndirect(GL_TRIANGLES, activeMeshCount, (void*)0, sizeof(IndirectCommand));
 
-    commandBuffer->unbind(GL_DRAW_INDIRECT_BUFFER);
-
-    geometryBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 0);
-    surfaceBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 1);
-    meshMetaBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 2);
-    meshRenderBuffer->unbind(GL_ATOMIC_COUNTER_BUFFER, 3);
-
-    partMetaBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
-    partTransformBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 5);
-    partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 6);
-
-    commandBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 7);
-    referenceBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 8);
+    commandBuffer->unbind(   GL_DRAW_INDIRECT_BUFFER);
+    partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
+    referenceBuffer->unbind( GL_SHADER_STORAGE_BUFFER, 6);
 }
 
 // =========== Mesh ===========
@@ -380,8 +383,9 @@ Mesh::Mesh(unsigned int vertex_capacity) {
     metaData.vertex_capacity = vertex_capacity;
     metaData.vertex_count = 0;
     metaData.vertex_first = vertCount;
+    metaData.state = 1;
     meshMetaBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
-    vertCount++;
+    vertCount += vertex_capacity;
 }
 Mesh::~Mesh() {
     activeMeshCount--;
@@ -471,18 +475,24 @@ Part::Part() {
     partCount++;
     activePartCount++;
 
-    PartMetaData meshHandle;
-    meshHandle.mesh_index = 0;  
-    partMetaBuffer->write(&meshHandle, sizeof(PartMetaData) * index, sizeof(PartMetaData));
+    PartMetaData partMetaData;
+    partMetaData.mesh_index = 0;
+    partMetaData.state = 0;
+    partMetaBuffer->write(&partMetaData, sizeof(PartMetaData) * index, sizeof(PartMetaData));
     syncToBuffer();
 }
 Part::~Part() {
     activePartCount--;
+    PartMetaData partMetaData;
+    partMetaData.mesh_index = 0;
+    partMetaData.state = 0;
+    partMetaBuffer->write(&partMetaData, sizeof(PartMetaData) * index, sizeof(PartMetaData));
 }
 void Part::setMesh(Mesh& mesh) {
-    PartMetaData meshHandle;
-    meshHandle.mesh_index = mesh.getHandle();
-    partMetaBuffer->write(&meshHandle, sizeof(PartMetaData) * index, sizeof(PartMetaData));
+    PartMetaData partMetaData;
+    partMetaData.mesh_index = mesh.getHandle();
+    partMetaData.state = 1;
+    partMetaBuffer->write(&partMetaData, sizeof(PartMetaData) * index, sizeof(PartMetaData));
 }
 void Part::syncFromBuffer() {
     PartTransform bufferTransform;

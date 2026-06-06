@@ -2,11 +2,6 @@
 
 layout(local_size_x = 256) in;
 
-struct MeshIndex {
-	uint index;
-	uint _padding;
-};
-
 struct IndirectCommand {
 	uint count;
 	uint instance_count;
@@ -21,24 +16,29 @@ struct MeshHandle {
 	uint _padding;
 };
 
-layout(std430, binding = 0) buffer indirectCommandBuffer {
-	IndirectCommand command[];
-};
-layout(std430, binding = 1) buffer partHandleBuffer {
-	MeshIndex mesh_index[];
-};
-layout(std430, binding = 2) buffer meshBuffer {
-	MeshHandle mesh_handle[];
+struct MeshRenderData {
+	uint referenced_count;
+	uint reference_offset;
 };
 
-uniform uint part_count;
+layout(std430, binding = 0) buffer meshMetaBuffer {
+	MeshHandle mesh_handle[];
+};
+layout(std430, binding = 1) buffer meshRenderBuffer {
+	MeshRenderData mesh_render_data[];
+};
+layout(std430, binding = 5) buffer commandBuffer {
+	IndirectCommand command[];
+};
+
+uniform uint mesh_count;
 
 void main() {
 	uint id = gl_GlobalInvocationID.x;
-	if (id >= part_count) return;
+	if (id >= mesh_count) return;
 
-	command[id].count = mesh_handle[mesh_index[id].index].vertex_count;
-	command[id].instance_count = 1;
-	command[id].first = mesh_handle[mesh_index[id].index].vertex_first;
-	command[id].base_instance = id;
+	command[id].count = mesh_handle[id].vertex_count;
+	command[id].instance_count = mesh_render_data[id].referenced_count;
+	command[id].first = mesh_handle[id].vertex_first;
+	command[id].base_instance = mesh_render_data[id].reference_offset;
 }

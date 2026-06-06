@@ -142,6 +142,14 @@ void Buffer::read(void* destination, GLsizeiptr offset, GLsizeiptr size) const {
 	}
 	memcpy(destination, static_cast<char*>(ptr) + offset, size);
 }
+void Buffer::set(int value, GLsizeiptr offset, GLsizeiptr size) const {
+	errorMark;
+	if (offset + size > this->size || offset < 0 || size < 1) {
+		Error(ENGINE_GRAPHICS, BUFFER, WARNING, SEVERITY_LOW, OUT_OF_RANGE_VALUE, "attempted set to out of range location");
+		return;
+	}
+	memset(static_cast<char*>(ptr) + offset, value, size);
+}
 void Buffer::bind(GLenum target, GLuint index, GLsizeiptr offset, GLsizeiptr size) const {
 	errorMark;
 	glBindBufferRange(target, index, id, offset, size);

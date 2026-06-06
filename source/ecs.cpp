@@ -32,7 +32,8 @@ namespace {
         GLuint vertex_first;
         GLuint vertex_count;
         GLuint vertex_capacity;
-        GLuint padding;
+        GLuint state;
+        GLuint reference_offet;
     };
 
     struct GeometryVertex {
@@ -54,32 +55,45 @@ namespace {
         float padding1;
     };
 
-    struct PartHandle {
+    struct PartMetaData {
         GLuint mesh_index;
-        GLuint padding;
+        GLuint state;
     };
 
     struct PartMatrix {
         glm::mat4 transform_matrix;
     };
 
+    struct PartReference {
+        GLuint part_index;
+        GLuint padding;
+    };
+
+    struct MeshRenderData {
+        GLuint count;
+        GLuint reference_offset;
+    };
 }
 
 static Buffer* geometryBuffer = nullptr;
 static Buffer* surfaceBuffer = nullptr;
-static Buffer* meshBuffer = nullptr;
+static Buffer* meshMetaBuffer = nullptr;
+static Buffer* meshRenderBuffer = nullptr;
 
-static Buffer* partBuffer = nullptr;
-static Buffer* partHandleBuffer = nullptr;
+static Buffer* partTransformBuffer = nullptr;
+static Buffer* partMetaBuffer = nullptr;
 static Buffer* partMatrixBuffer = nullptr;
 
 static Buffer* commandBuffer = nullptr;
+static Buffer* referenceBuffer = nullptr;
 
 static VAO* vao = nullptr;
 
 static ShaderProgram* commandBuilderProgram = nullptr;
 static ShaderProgram* matrixBuilderProgram = nullptr;
+static ShaderProgram* renderabilityProgram = nullptr;
 static ShaderProgram* renderProgram = nullptr;
+static ShaderProgram* orderingProgram = nullptr;
 
 static const unsigned int MAX_MESH_COUNT = 100;
 static const unsigned int MAX_VERT_COUNT = 1000000;
@@ -89,6 +103,9 @@ static unsigned int partCount = 0;
 static unsigned int meshCount = 0;
 static unsigned int vertCount = 0;
 
+static unsigned int activePartCount = 0;
+static unsigned int activeMeshCount = 0;
+
 Fence renderFence;
 
 /*   
@@ -97,6 +114,13 @@ Fence renderFence;
 *       -alignment=std430
 *       -padding element excluded in shaders
 * =================================
+*   reference buffer:
+*       -contains: references to objects
+*       -stride=2*uint
+*       -layout=(
+*           uint(index),
+*           uint(padding))
+* 
 *   geometry buffer:
 *       -contains: mesh geometry data
 *       -stride=8*float
@@ -112,36 +136,39 @@ Fence renderFence;
 *       -layout=(
 *           vec4(color))
 * 
-*   meshBuffer:
+*   meshMetaBuffer:
 *       -contains: surface and geometry handles
-*       -stride=4*uint
-*       -layout=(struct{
+*       -stride=5*uint
+*       -layout=(
 *           uint(vertex_first),
 *           uint(vertex_count),
 *           uint(vertex_capacity),
-*           uint(padding)
-*           }(handle))
-*       -note: not vao binding
+*           uint(state),
+*           uint(reference_offset))
 * 
-*   partBuffer:
+*   meshRenderBuffer:
+*       -contains: counts
+*       -stride=uint
+*       -layout=(
+*           uint(count),
+*           uint(reference_offset))
+* 
+*   partTransformBuffer:
 *       -contains: part data
 *       -stride=12*float
-*       -layout=(struct{
-*               vec3(position),
-*               float(padding),
-*               vec4(rotation),
-*               vec3(scale),
-*               float(padding)
-                }(transform))
-*       -note: not vao binding
+*       -layout=(
+*           vec3(position),
+*           float(padding),
+*           vec4(rotation),
+*           vec3(scale),
+*           float(padding))
 * 
-*   partHandleBuffer:
+*   partMetaBuffer:
 *       -contains: mesh index
 *       -stride=2*uint
 *       -layout=(
 *           uint(mesh_index),
-*           uint(padding))
-*       -note: not vao binding
+*           uint(state))
 * 
 *   partMatrixBuffer:
 *       -contains: transform matrix
@@ -152,77 +179,78 @@ Fence renderFence;
 *   commandBuffer:
 *       -contains: draw commands
 *       -stride=4*uint
-*       -layout=(struct{
-*               uint(count),
-*               uint(instance_count),
-*               uint(first),
-*               uint(base_instance)
-*               }(command))
-*       -note: not vao binding
+*       -layout=(
+*           uint(count),
+*           uint(instance_count),
+*           uint(first),
+*           uint(base_instance))
 * =================================
 *   vao:
 *       -attributes:
-*           -per vertex:
-*               0=vec3(vertex position)->geometryBuffer(position)
-*               1=vec3(vertex normal)->geometryBuffer(normal)
-*               2=vec4(vertex color)->surfaceBuffer(color)
-*           -per part:
-*               3,4,5,6=mat4(part transform matrix)->partMatrixBuffer(transformation_matrix)
+*           0=vec3(vertex_position)->geometryBuffer(position)
+*           1=vec3(vertex_normal)->geometryBuffer(normal)
+*           2=vec4(vertex color)->surfaceBuffer(color)
+*       -bindings:
+*           3=partMatrixBuffer(transformation_matrix)
+*           5=referenceBuffer(index)
 *       -uniforms:
 *           viewMatrix=mat4(camera_view_matrix)
 *           projMatrix=mat4(camera_projection_matrix)
 * =================================
-*   buffer bindings:
-*       0=commandBuffer
-*       1=partHandleBuffer
-*       2=meshBuffer
-*       3=partBuffer
+*   attributes:
+*       0=vec3(vertex_position)->geometryBuffer(position)
+*       1=vec3(vertex_normal)->geometryBuffer(normal)
+*       2=vec4(vertex color)->surfaceBuffer(color)
+* 
+*   bindings:
+*       0=meshMetaBuffer
+*       1=meshRenderBuffer
+*       2=partMetaBuffer
+*       3=partTransformBuffer
 *       4=partMatrixBuffer
-* =================================
+*       5=commandBuffer
+*       6=referenceBuffer
+* ================================= // FIX!!!
+*   renderability shader:
+*       -purpose: count renderable object based on their state
+*       -bindings:
+*           1=meshAtomBuffer(mesh_counter)
+*           2=partMetaBuffer(part_metadata)
+*       -uniforms:
+*           uint partCount
+* 
 *   command builder shader:
 *       -purpose: construct indirect draw commands
 *       -bindings:
-*           0=struct{
-*               uint(count),
-*               uint(instance_count),
-*               uint(first),
-*               uint(base_instance)
-*               }(command)->commandBuffer(command)
-*           1=uint(mesh_index)->partHandleBuffer(mesh_index)
-*           2=struct{
-*               uint(vertex_first),
-*               uint(vertex_count),
-*               uint(vertex_capacity),
-*               uint(padding)
-*               }(mesh_handle)->meshBuffer(handle)
+*           0=meshMetaBuffer(mesh_metadata)
+*           1=partMetaBuffer(part_metadata
+*           4=commandBuffer(command)
 *       -uniforms:
-*           uint partCount;
+*           uint partCount
 *           
 *   matrix builder shader:
 *       -purpose: compute transformation matracies from transform components
 *       -bindings:
-*           3=struct{
-*               vec3(position),
-*               float(padding),
-*               vec4(rotation),
-*               vec3(scale),
-*               float(padding)
-*               }(part_transform)->partBuffer(transform)
-*           4=mat4(part_transform_matrix)->partMatrixBuffer(transform_matrix)
+*           2=partTransformBuffer(part_transform)
+*           3=partMatrixBuffer(part_transform_matrix)
 *       -uniforms:
-*           uint partCount;
+*           uint partCount
 * =================================
 */
 
 // =========== Initialization ===========
 void ikEcsInit() {
-    geometryBuffer =   new Buffer(sizeof(GeometryVertex) * MAX_VERT_COUNT);
-    surfaceBuffer =    new Buffer(sizeof(SurfaceVertex) * MAX_VERT_COUNT);
-    meshBuffer =       new Buffer(sizeof(MeshMetaData) * MAX_MESH_COUNT);
-    partBuffer =       new Buffer(sizeof(PartTransform) * MAX_PART_COUNT);
-    partHandleBuffer = new Buffer(sizeof(PartHandle) * MAX_PART_COUNT);
-    partMatrixBuffer = new Buffer(sizeof(PartMatrix) * MAX_PART_COUNT);
-    commandBuffer =    new Buffer(sizeof(IndirectCommand) * MAX_PART_COUNT);
+    geometryBuffer =      new Buffer(sizeof(GeometryVertex) * MAX_VERT_COUNT);
+    surfaceBuffer =       new Buffer(sizeof(SurfaceVertex) * MAX_VERT_COUNT);
+    meshMetaBuffer =      new Buffer(sizeof(MeshMetaData) * MAX_MESH_COUNT);
+    meshRenderBuffer =    new Buffer(sizeof(MeshRenderData) * MAX_MESH_COUNT);
+
+    partTransformBuffer = new Buffer(sizeof(PartTransform) * MAX_PART_COUNT);
+    partMetaBuffer =      new Buffer(sizeof(PartMetaData) * MAX_PART_COUNT);
+    partMatrixBuffer =    new Buffer(sizeof(PartMatrix) * MAX_PART_COUNT);
+
+    commandBuffer =       new Buffer(sizeof(IndirectCommand) * MAX_MESH_COUNT);
+    referenceBuffer =     new Buffer(sizeof(PartReference) * MAX_PART_COUNT);
 
 	vao = new VAO;
 
@@ -240,21 +268,16 @@ void ikEcsInit() {
 
     vao->attribute(2, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 0); // vertex color
     vao->link(2, 1);
-
-    // part matrix buffer
-    vao->binding(2, partMatrixBuffer->getID(), 0, sizeof(GLfloat) * 16);
-
-    vao->attribute(3, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 0); // part transform matrix
-    vao->attribute(4, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4);
-    vao->attribute(5, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8);
-    vao->attribute(6, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 12);
-    vao->link(3, 2);
-    vao->link(4, 2);
-    vao->link(5, 2);
-    vao->link(6, 2);
-    vao->divisor(2, 1);
     
     std::string renderingPipelineShaderDirectory = "shaders/rendering pipeline/";
+
+    renderabilityProgram = new ShaderProgram;
+    renderabilityProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "renderability_shader.comp"));
+    renderabilityProgram->compile();
+
+    orderingProgram = new ShaderProgram;
+    orderingProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "ordering_shader.comp"));
+    orderingProgram->compile();
 
     commandBuilderProgram = new ShaderProgram;
     commandBuilderProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "command_builder_shader.comp"));
@@ -272,35 +295,45 @@ void ikEcsInit() {
 
 // =========== Renderer ===========
 void render(Camera camera) {
-    commandBuffer->bind(   GL_SHADER_STORAGE_BUFFER, 0, 0, commandBuffer->getSize());
-    partHandleBuffer->bind(GL_SHADER_STORAGE_BUFFER, 1, 0, partHandleBuffer->getSize());
-    meshBuffer->bind(      GL_SHADER_STORAGE_BUFFER, 2, 0, meshBuffer->getSize());
-    partBuffer->bind(      GL_SHADER_STORAGE_BUFFER, 3, 0, partBuffer->getSize());
-    partMatrixBuffer->bind(GL_SHADER_STORAGE_BUFFER, 4, 0, partMatrixBuffer->getSize());
-    
-    commandBuilderProgram->useProgram();
-    glUniform1ui(glGetUniformLocation(commandBuilderProgram->getID(), "part_count"), partCount);
-    commandBuilderProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
-    
-    Fence commandBuilderFence;
-    commandBuilderFence.place();
+    geometryBuffer->bind(GL_SHADER_STORAGE_BUFFER, 0, 0, geometryBuffer->getSize());
+    surfaceBuffer->bind(GL_SHADER_STORAGE_BUFFER, 1, 0, surfaceBuffer->getSize());
+    meshMetaBuffer->bind(GL_SHADER_STORAGE_BUFFER, 2, 0, meshMetaBuffer->getSize());
+    meshRenderBuffer->bind(GL_ATOMIC_COUNTER_BUFFER, 3, 0, meshRenderBuffer->getSize());
+
+    partMetaBuffer->bind(GL_SHADER_STORAGE_BUFFER, 4, 0, partMetaBuffer->getSize());
+    partTransformBuffer->bind(GL_SHADER_STORAGE_BUFFER, 5, 0, partTransformBuffer->getSize());
+    partMatrixBuffer->bind(GL_SHADER_STORAGE_BUFFER, 6, 0, partMatrixBuffer->getSize());
+
+    commandBuffer->bind(GL_SHADER_STORAGE_BUFFER, 7, 0, commandBuffer->getSize());
+    referenceBuffer->bind(GL_SHADER_STORAGE_BUFFER, 8, 0, referenceBuffer->getSize());
+
+    renderabilityProgram->useProgram();
+    glUniform1ui(glGetUniformLocation(renderabilityProgram->getID(), "part_count"), partCount);
+    renderabilityProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+
+    std::vector<MeshRenderData> meshRenderData(meshCount);
+    meshRenderBuffer->read(meshRenderData.data(), 0, meshCount * sizeof(MeshRenderData));
+
+    meshRenderData[0].reference_offset = 0;
+    for (unsigned int i = 1; i < meshRenderData.size(); i++) {
+        meshRenderData[i].reference_offset = meshRenderData[i - 1].reference_offset + meshRenderData[i - 1].count;
+        meshRenderData[i - 1].count = 0;
+    }
+    meshRenderData.back().count = 0;
+
+    meshRenderBuffer->write(meshRenderData.data(), 0, meshCount * sizeof(MeshRenderData));
+
+    orderingProgram->useProgram();
+    glUniform1ui(glGetUniformLocation(orderingProgram->getID(), "part_count"), partCount);
+    orderingProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
     
     matrixBuilderProgram->useProgram();
-    glUniform1ui(glGetUniformLocation(matrixBuilderProgram->getID(), "part_count"), partCount);
+    glUniform1ui(glGetUniformLocation(matrixBuilderProgram->getID(), "active_part_count"), activePartCount);
     matrixBuilderProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
-    
-    Fence matrixBuilderFence;
-    matrixBuilderFence.place();
-    
-    commandBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 0);
-    partHandleBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 1);
-    meshBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 2);
-    partBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 3);
-    partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
-    
-    GLuint64 timeout = 1000000000; // 1 second
-    commandBuilderFence.wait(timeout);
-    matrixBuilderFence.wait(timeout);
+
+    commandBuilderProgram->useProgram();
+    glUniform1ui(glGetUniformLocation(commandBuilderProgram->getID(), "mesh_count"), meshCount);
+    commandBuilderProgram->runCompute((meshCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
 
     renderProgram->useProgram();
 
@@ -314,9 +347,19 @@ void render(Camera camera) {
 
     vao->drawMultiIndirect(GL_TRIANGLES, partCount, (void*)0, sizeof(IndirectCommand));
 
-    renderFence.place();
-
     commandBuffer->unbind(GL_DRAW_INDIRECT_BUFFER);
+
+    geometryBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 0);
+    surfaceBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 1);
+    meshMetaBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 2);
+    meshRenderBuffer->unbind(GL_ATOMIC_COUNTER_BUFFER, 3);
+
+    partMetaBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
+    partTransformBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 5);
+    partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 6);
+
+    commandBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 7);
+    referenceBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 8);
 }
 
 // =========== Mesh ===========
@@ -331,13 +374,17 @@ Mesh::Mesh(unsigned int vertex_capacity) {
     }
     index = meshCount;
     meshCount++;
+    activeMeshCount++;
 
     MeshMetaData metaData;
     metaData.vertex_capacity = vertex_capacity;
     metaData.vertex_count = 0;
     metaData.vertex_first = vertCount;
-    meshBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
+    meshMetaBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
     vertCount++;
+}
+Mesh::~Mesh() {
+    activeMeshCount--;
 }
 void Mesh::vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color) {
     errorMark;
@@ -349,7 +396,7 @@ void Mesh::vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color) {
     surfaceVertex.color = color;
 
     MeshMetaData metaData;
-    meshBuffer->read(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
+    meshMetaBuffer->read(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
 
     if (metaData.vertex_count >= metaData.vertex_capacity) {
         Error(ENGINE_ECS, MESH, WARNING, SEVERITY_MEDIUM, OUT_OF_RANGE_VALUE, "vertex capacity reached, cannot upload more geometry");
@@ -360,7 +407,7 @@ void Mesh::vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color) {
     surfaceBuffer->write(&surfaceVertex, sizeof(SurfaceVertex) * (metaData.vertex_first + metaData.vertex_count), sizeof(SurfaceVertex));
 
     metaData.vertex_count++;
-    meshBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
+    meshMetaBuffer->write(&metaData, sizeof(MeshMetaData) * index, sizeof(MeshMetaData));
 
 }
 void Mesh::sphere(glm::vec3 position, glm::quat rotation, glm::vec3 scale, glm::vec4 color, unsigned int segments) {
@@ -422,20 +469,24 @@ Part::Part() {
     }
     index = partCount;
     partCount++;
+    activePartCount++;
 
-    PartHandle meshHandle;
+    PartMetaData meshHandle;
     meshHandle.mesh_index = 0;  
-    partHandleBuffer->write(&meshHandle, sizeof(PartHandle) * index, sizeof(PartHandle));
+    partMetaBuffer->write(&meshHandle, sizeof(PartMetaData) * index, sizeof(PartMetaData));
     syncToBuffer();
 }
+Part::~Part() {
+    activePartCount--;
+}
 void Part::setMesh(Mesh& mesh) {
-    PartHandle meshHandle;
+    PartMetaData meshHandle;
     meshHandle.mesh_index = mesh.getHandle();
-    partHandleBuffer->write(&meshHandle, sizeof(PartHandle) * index, sizeof(PartHandle));
+    partMetaBuffer->write(&meshHandle, sizeof(PartMetaData) * index, sizeof(PartMetaData));
 }
 void Part::syncFromBuffer() {
     PartTransform bufferTransform;
-    partBuffer->read(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
+    partTransformBuffer->read(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
 
     transform.position = bufferTransform.position;
     transform.rotation = bufferTransform.rotation;
@@ -447,7 +498,7 @@ void Part::syncToBuffer() {
     bufferTransform.rotation = transform.rotation;
     bufferTransform.scale = transform.scale;
 
-    partBuffer->write(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
+    partTransformBuffer->write(&bufferTransform, sizeof(PartTransform) * index, sizeof(PartTransform));
 }
 GLuint Part::getHandle() {
     return index;

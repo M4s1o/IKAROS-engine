@@ -8,21 +8,24 @@ vec4 rotation;
 vec3 scale;
 };
 
-layout(std430, binding = 3) buffer partBuffer {
+layout(std430, binding = 3) buffer partTransformBuffer {
 	Transform part_transform[];
 };
 layout(std430, binding = 4) buffer partMatrixBuffer {
 	mat4 part_transform_matrix[];
 };
+layout(std430, binding = 6) buffer referenceBuffer {
+	uint actual_index[];
+};
 
-uniform uint part_count;
+uniform uint active_part_count;
 
 mat4 createMatrix(Transform transform);
 mat3 quatToMat3(vec4 q);
 
 void main() {
-	uint id = gl_GlobalInvocationID.x;
-    if (id >= part_count) return;
+	uint id = actual_index[gl_GlobalInvocationID.x];
+    if (id >= active_part_count) return;
 
     part_transform_matrix[id] = createMatrix(part_transform[id]);
 }

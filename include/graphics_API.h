@@ -53,6 +53,7 @@ public:
 
 	void write(const void* source, GLsizeiptr offset, GLsizeiptr size) const;
 	void read(void* destination, GLsizeiptr offset, GLsizeiptr size) const;
+	void set(int value, GLsizeiptr offset, GLsizeiptr size) const;
 
 	void bind(GLenum target, GLuint index, GLsizeiptr offset, GLsizeiptr size) const;
 	void bind(GLenum target) const;

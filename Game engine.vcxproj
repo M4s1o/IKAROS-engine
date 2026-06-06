@@ -159,12 +159,17 @@
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="Libraries\glad.c" />
-    <ClCompile Include="multidrawMain.cpp" />
-    <ClCompile Include="Source.cpp">
+    <ClCompile Include="multidrawMain.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Source.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\ecs.cpp" />
     <ClCompile Include="source\error_wrapper.cpp" />
@@ -184,6 +189,8 @@
     <None Include="multidraw.vert" />
     <None Include="shaders\rendering pipeline\command_builder_shader.comp" />
     <None Include="shaders\rendering pipeline\matrix_builder_shader.comp" />
+    <None Include="shaders\rendering pipeline\ordering_shader.comp" />
+    <None Include="shaders\rendering pipeline\renderability_shader.comp" />
     <None Include="shaders\rendering pipeline\render_shader.frag" />
     <None Include="shaders\rendering pipeline\render_shader.vert" />
   </ItemGroup>

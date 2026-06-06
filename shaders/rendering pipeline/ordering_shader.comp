@@ -1,0 +1,37 @@
+#version 460 core
+
+layout(local_size_x = 256) in;
+
+struct MeshRenderData {
+	uint referenced_count;
+	uint reference_offset;
+};
+
+struct PartMetaData {
+	uint mesh_index;
+	uint state;
+};
+
+layout(std430, binding = 1) buffer meshRenderBuffer {
+	MeshRenderData mesh_render_data[];
+};
+layout(std430, binding = 2) buffer partMetaBuffer {
+	PartMetaData part_metadata[];
+};
+layout(std430, binding = 6) buffer referenceBuffer {
+	uint actual_index[];
+};
+
+uniform uint part_count;
+
+void main() {
+	uint id = gl_GlobalInvocationID.x;
+    if (id >= part_count) return;
+	if (part_metadata[id].state == 0) return;
+
+	uint mesh_id = part_metadata[id].mesh_index;
+
+	uint index = atomicAdd(mesh_render_data[mesh_id].referenced_count, 1) + mesh_render_data[mesh_id].reference_offset;
+
+	actual_index[index] = id;
+}

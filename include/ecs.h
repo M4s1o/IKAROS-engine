@@ -73,6 +73,7 @@ private:
 	GLuint index;
 public:
 	Mesh(unsigned int vertex_capacity);
+	~Mesh();
 
 	void vertex(glm::vec3 position, glm::vec3 normal, glm::vec4 color);
 
@@ -97,6 +98,7 @@ public:
 	Transform3D transform;
 
 	Part();
+	~Part();
 
 	void setMesh(Mesh& mesh);
 

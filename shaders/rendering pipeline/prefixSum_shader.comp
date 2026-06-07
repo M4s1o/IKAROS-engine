@@ -1,0 +1,26 @@
+#version 460 core
+
+layout(local_size_x = 128) in;
+
+struct MeshRenderData {
+	uint count;
+	uint reference_offset;
+};
+
+layout(std430, binding = 1) buffer MeshRenderBuffer {
+    MeshRenderData meshRenderData[];
+};
+
+uniform uint mesh_count;
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= 1) return;
+
+    meshRenderData[0].reference_offset = 0;
+    for (unsigned int i = 1; i < mesh_count; i++) {
+        meshRenderData[i].reference_offset = meshRenderData[i - 1].reference_offset + meshRenderData[i - 1].count;
+        meshRenderData[i - 1].count = 0;
+    }
+    meshRenderData[mesh_count - 1].count = 0;
+}

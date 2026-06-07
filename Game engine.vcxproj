@@ -190,6 +190,7 @@
     <None Include="shaders\rendering pipeline\command_builder_shader.comp" />
     <None Include="shaders\rendering pipeline\matrix_builder_shader.comp" />
     <None Include="shaders\rendering pipeline\ordering_shader.comp" />
+    <None Include="shaders\rendering pipeline\prefixSum_shader.comp" />
     <None Include="shaders\rendering pipeline\renderability_shader.comp" />
     <None Include="shaders\rendering pipeline\render_shader.frag" />
     <None Include="shaders\rendering pipeline\render_shader.vert" />

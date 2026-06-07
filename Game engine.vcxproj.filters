@@ -118,5 +118,8 @@
     <None Include="shaders\rendering pipeline\ordering_shader.comp">
       <Filter>Resource Files\shaders\rendering pipeline</Filter>
     </None>
+    <None Include="shaders\rendering pipeline\prefixSum_shader.comp">
+      <Filter>Resource Files\shaders\rendering pipeline</Filter>
+    </None>
   </ItemGroup>
 </Project>

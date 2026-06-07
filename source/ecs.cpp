@@ -92,6 +92,7 @@ static ShaderProgram* commandBuilderProgram = nullptr;
 static ShaderProgram* matrixBuilderProgram = nullptr;
 static ShaderProgram* renderabilityProgram = nullptr;
 static ShaderProgram* renderProgram = nullptr;
+static ShaderProgram* prefixSumProgram = nullptr;
 static ShaderProgram* orderingProgram = nullptr;
 
 static const unsigned int MAX_MESH_COUNT = 100;
@@ -274,6 +275,10 @@ void ikEcsInit() {
     renderabilityProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "renderability_shader.comp"));
     renderabilityProgram->compile();
 
+    prefixSumProgram = new ShaderProgram;
+    prefixSumProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "prefixSum_shader.comp"));
+    prefixSumProgram->compile();
+
     orderingProgram = new ShaderProgram;
     orderingProgram->addShader(GL_COMPUTE_SHADER, readFileToString(renderingPipelineShaderDirectory + "ordering_shader.comp"));
     orderingProgram->compile();
@@ -308,23 +313,11 @@ void render(Camera camera) {
 
     renderabilityProgram->useProgram();
     glUniform1ui(glGetUniformLocation(renderabilityProgram->getID(), "part_count"), partCount);
-    renderabilityProgram->runCompute((partCount + 255) / 256, 1, 1);
+    renderabilityProgram->runCompute((partCount + 255) / 256, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
 
-    Fence fence;
-    fence.place();
-    fence.wait(1000000000);
-
-    std::vector<MeshRenderData> meshRenderData(meshCount);
-    meshRenderBuffer->read(meshRenderData.data(), 0, meshCount * sizeof(MeshRenderData));
-
-    meshRenderData[0].reference_offset = 0;
-    for (unsigned int i = 1; i < meshRenderData.size(); i++) {
-        meshRenderData[i].reference_offset = meshRenderData[i - 1].reference_offset + meshRenderData[i - 1].count;
-        meshRenderData[i - 1].count = 0;
-    }
-    meshRenderData.back().count = 0;
-
-    meshRenderBuffer->write(meshRenderData.data(), 0, meshCount * sizeof(MeshRenderData));
+    prefixSumProgram->useProgram();
+    glUniform1ui(glGetUniformLocation(prefixSumProgram->getID(), "mesh_count"), meshCount);
+    prefixSumProgram->runCompute(1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
 
     orderingProgram->useProgram();
     glUniform1ui(glGetUniformLocation(orderingProgram->getID(), "part_count"), partCount);
@@ -344,8 +337,7 @@ void render(Camera camera) {
     partTransformBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 3);
     commandBuffer->unbind(      GL_SHADER_STORAGE_BUFFER, 5);
 
-    fence.place();
-    fence.wait(1000000000);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
     renderProgram->useProgram();
 

@@ -98,10 +98,12 @@ int main() {
 	trianglePart.transform.position = { 1, 1, 1 };
 	trianglePart.syncToBuffer();
 
-	Part trianglePar1;
-	trianglePar1.setMesh(sphereMesh);
-	trianglePar1.transform.position = { 0, 0, 0 };
-	trianglePar1.syncToBuffer();
+	if (cameraSpeed) {
+		Part trianglePar1;
+		trianglePar1.setMesh(sphereMesh);
+		trianglePar1.transform.position = { 0, 0, 0 };
+		trianglePar1.syncToBuffer();
+	}
 
 	Part trianglePar2;
 	trianglePar2.setMesh(triangleMesh);
@@ -171,7 +173,7 @@ int main() {
 
         render(camera);
 
-		//dumpEcsState(10, 10);
+		dumpEcsState(10, 10);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();

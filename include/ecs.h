@@ -97,6 +97,9 @@ private:
 public:
 	Transform3D transform;
 
+	Part(const Part&) = delete;
+	Part& operator=(const Part&) = delete;
+
 	Part();
 	~Part();
 
@@ -128,5 +131,5 @@ public:
 void ikEcsInit();
 void render(Camera camera);
 
-void dumpEcsState(int maxParts = 10, int maxMeshes = 10);
+void dumpEcsState(unsigned int maxParts = 10, unsigned int maxMeshes = 10);
 void forceDebugRenderData();

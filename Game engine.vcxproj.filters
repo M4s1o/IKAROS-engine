@@ -75,6 +75,9 @@
     <ClCompile Include="multidrawMain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="slider.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ecs.h">

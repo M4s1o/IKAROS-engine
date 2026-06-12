@@ -24,8 +24,9 @@ mat4 createMatrix(Transform transform);
 mat3 quatToMat3(vec4 q);
 
 void main() {
-	uint id = actual_index[gl_GlobalInvocationID.x];
-    if (id >= active_part_count) return;
+    uint process_id = gl_GlobalInvocationID.x;
+	uint id = actual_index[process_id];
+    if (process_id >= active_part_count) return;
 
     part_transform_matrix[id] = createMatrix(part_transform[id]);
 }

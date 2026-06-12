@@ -297,6 +297,7 @@ void ikEcsInit() {
     renderProgram->compile();
 }
 
+static Fence fence;
 // =========== Renderer ===========
 void render(Camera camera) {
     meshMetaBuffer->bind(     GL_SHADER_STORAGE_BUFFER, 0, 0, meshMetaBuffer->getSize());
@@ -355,6 +356,167 @@ void render(Camera camera) {
     commandBuffer->unbind(   GL_DRAW_INDIRECT_BUFFER);
     partMatrixBuffer->unbind(GL_SHADER_STORAGE_BUFFER, 4);
     referenceBuffer->unbind( GL_SHADER_STORAGE_BUFFER, 6);
+
+    fence.place();
+}
+
+// temp debug functions
+#include <iostream>
+#include <vector>
+
+void dumpEcsState(unsigned int meshLimit, unsigned int partLimit) {
+    std::cout << "\n================ ECS DEBUG DUMP ================\n\n";
+
+    // ---------- MeshMetaData ----------
+    {
+        std::vector<MeshMetaData> data(meshLimit);
+        meshMetaBuffer->read(
+            data.data(),
+            0,
+            sizeof(MeshMetaData) * std::min(meshLimit, meshCount)
+        );
+
+        std::cout << "[MeshMetaData]\n";
+        for (unsigned int i = 0; i < std::min(meshLimit, meshCount); i++) {
+            std::cout
+                << "mesh " << i
+                << " | vFirst=" << data[i].vertex_first
+                << " | vCount=" << data[i].vertex_count
+                << " | vCap=" << data[i].vertex_capacity
+                << " | state=" << data[i].state
+                << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    // ---------- MeshRenderData ----------
+    {
+        std::vector<MeshRenderData> data(meshLimit);
+        meshRenderBuffer->read(
+            data.data(),
+            0,
+            sizeof(MeshRenderData) * std::min(meshLimit, meshCount)
+        );
+
+        std::cout << "[MeshRenderData]\n";
+        for (unsigned int i = 0; i < std::min(meshLimit, meshCount); i++) {
+            std::cout
+                << "mesh " << i
+                << " | referenced=" << data[i].count
+                << " | offset=" << data[i].reference_offset
+                << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    // ---------- PartMetaData ----------
+    {
+        std::vector<PartMetaData> data(partLimit);
+        partMetaBuffer->read(
+            data.data(),
+            0,
+            sizeof(PartMetaData) * std::min(partLimit, partCount)
+        );
+
+        std::cout << "[PartMetaData]\n";
+        for (unsigned int i = 0; i < std::min(partLimit, partCount); i++) {
+            std::cout
+                << "part " << i
+                << " | mesh=" << data[i].mesh_index
+                << " | state=" << data[i].state
+                << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    // ---------- PartTransform ----------
+    {
+        std::vector<PartTransform> data(partLimit);
+        partTransformBuffer->read(
+            data.data(),
+            0,
+            sizeof(PartTransform) * std::min(partLimit, partCount)
+        );
+
+        std::cout << "[PartTransform]\n";
+        for (unsigned int i = 0; i < std::min(partLimit, partCount); i++) {
+            std::cout
+                << "part " << i
+                << " | pos=("
+                << data[i].position.x << ", "
+                << data[i].position.y << ", "
+                << data[i].position.z << ")\n";
+        }
+        std::cout << "\n";
+    }
+
+    // ---------- PartMatrices ----------
+    {
+        std::vector<PartMatrix> data(partLimit);
+        partMatrixBuffer->read(
+            data.data(),
+            0,
+            sizeof(PartMatrix) * std::min(partLimit, partCount)
+        );
+
+        std::cout << "[PartMatrices]\n";
+        for (unsigned int i = 0; i < std::min(partLimit, partCount); i++) {
+            const glm::mat4& m = data[i].transform_matrix;
+
+            std::cout
+                << "mat " << i
+                << " | first row: "
+                << m[0][0] << ", "
+                << m[0][1] << ", "
+                << m[0][2] << ", "
+                << m[0][3]
+                << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    // ---------- ReferenceBuffer ----------
+    {
+        std::vector<GLuint> data(partLimit);
+        referenceBuffer->read(
+            data.data(),
+            0,
+            sizeof(GLuint) * std::min(partLimit, partCount)
+        );
+
+        std::cout << "[ReferenceBuffer]\n";
+        for (unsigned int i = 0; i < std::min(partLimit, partCount); i++) {
+            std::cout
+                << "ref[" << i << "] = part "
+                << data[i]
+                << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    // ---------- IndirectCommand ----------
+    {
+        std::vector<IndirectCommand> data(meshLimit);
+        commandBuffer->read(
+            data.data(),
+            0,
+            sizeof(IndirectCommand) * std::min(meshLimit, meshCount)
+        );
+
+        std::cout << "[IndirectCommand]\n";
+        for (unsigned int i = 0; i < std::min(meshLimit, meshCount); i++) {
+            std::cout
+                << "cmd " << i
+                << " | count=" << data[i].count
+                << " | inst=" << data[i].instanceCount
+                << " | first=" << data[i].first
+                << " | base=" << data[i].baseInstance
+                << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << "================================================\n\n";
 }
 
 // =========== Mesh ===========
@@ -463,6 +625,9 @@ Part::Part() {
         Error(ENGINE_ECS, MESH, WARNING, SEVERITY_HIGH, OUT_OF_RANGE_VALUE, "maximum part count reached, cannot create more parts");
         return;
     }
+    if (!fence.signaled()) {
+        std::cout << "Construct " << index << '\n';
+    }
     index = partCount;
     partCount++;
     activePartCount++;
@@ -474,6 +639,9 @@ Part::Part() {
     syncToBuffer();
 }
 Part::~Part() {
+    if (!fence.signaled()) {
+        std::cout << "Destroyed " << index << '\n';
+    }
     activePartCount--;
     PartMetaData partMetaData;
     partMetaData.mesh_index = 0;
